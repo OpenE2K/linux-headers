@@ -246,19 +246,12 @@ native_read_TIR_hi_reg(void)
 		NATIVE_SET_DSREG_OPEN(usd.lo, USD_lo_value)
 #define	NATIVE_NV_WRITE_USD_HI_REG_VALUE(USD_hi_value) \
 		NATIVE_SET_DSREG_OPEN(usd.hi, USD_hi_value)
-#define	NATIVE_NV_WRITE_USD_REG_VALUE(USD_hi_value, USD_lo_value) \
-({ \
-	NATIVE_NV_WRITE_USD_HI_REG_VALUE(USD_hi_value); \
-	NATIVE_NV_WRITE_USD_LO_REG_VALUE(USD_lo_value); \
-})
-#define	NATIVE_NV_WRITE_USD_REG(USD_hi, USD_lo) \
-({ \
-	NATIVE_NV_WRITE_USD_REG_VALUE(USD_hi.USD_hi_half, USD_lo.USD_lo_half); \
-})
 
 #define	NATIVE_NV_WRITE_USBR_USD_REG_VALUE(usbr, usd_hi, usd_lo) \
 do { \
 	NATIVE_NV_WRITE_USBR_REG_VALUE(usbr); \
+	if (cpu_has(CPU_HWBUG_USD_ALIGNMENT)) \
+		NATIVE_NV_WRITE_USD_LO_REG_VALUE(usd_lo); \
 	NATIVE_NV_WRITE_USD_HI_REG_VALUE(usd_hi); \
 	NATIVE_NV_WRITE_USD_LO_REG_VALUE(usd_lo); \
 } while (0)
@@ -266,6 +259,8 @@ do { \
 #define	NATIVE_NV_WRITE_USBR_USD_REG(usbr, usd_hi, usd_lo) \
 do { \
 	NATIVE_NV_WRITE_USBR_REG(usbr); \
+	if (cpu_has(CPU_HWBUG_USD_ALIGNMENT)) \
+		NATIVE_NV_WRITE_USD_LO_REG(usd_lo); \
 	NATIVE_NV_WRITE_USD_HI_REG(usd_hi); \
 	NATIVE_NV_WRITE_USD_LO_REG(usd_lo); \
 } while (0)
@@ -429,8 +424,10 @@ extern void native_write_SCLKM2_reg_value(unsigned long reg_value);
 		NATIVE_SET_SREG_CLOSED_NOEXC(dibcr, DIBCR_value, 4)
 #define	NATIVE_WRITE_DIBSR_REG_VALUE(DIBSR_value)	\
 		NATIVE_SET_SREG_CLOSED_NOEXC(dibsr, DIBSR_value, 4)
+/* 6 cycles delay guarantess that all counting
+ * is stopped and %dibsr is updated accordingly. */
 #define	NATIVE_WRITE_DIMCR_REG_VALUE(DIMCR_value)	\
-		NATIVE_SET_DSREG_CLOSED_NOEXC(dimcr, DIMCR_value, 4)
+		NATIVE_SET_DSREG_CLOSED_NOEXC(dimcr, DIMCR_value, 5)
 #define	NATIVE_WRITE_DIBAR0_REG_VALUE(DIBAR0_value)	\
 		NATIVE_SET_DSREG_CLOSED_NOEXC(dibar0, DIBAR0_value, 4)
 #define	NATIVE_WRITE_DIBAR1_REG_VALUE(DIBAR1_value)	\

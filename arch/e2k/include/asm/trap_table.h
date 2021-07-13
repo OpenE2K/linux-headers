@@ -249,7 +249,8 @@ is_kernel_data_stack_bounds(bool on_kernel, e2k_usd_lo_t usd_lo)
 #include <asm/kvm/trap_table.h>
 
 #ifndef __ASSEMBLY__
-static inline void init_pt_regs_for_syscall(struct pt_regs *regs)
+__always_inline /* For CPU_HWBUG_VIRT_PSIZE_INTERCEPTION */
+static void init_pt_regs_for_syscall(struct pt_regs *regs)
 {
 	regs->next = NULL;
 	regs->trap = NULL;

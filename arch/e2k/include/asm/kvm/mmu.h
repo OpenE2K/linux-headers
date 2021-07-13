@@ -124,6 +124,16 @@ static inline void reset_spt_gpa_fault(struct kvm_vcpu *vcpu)
 	vcpu->arch.mmu.spt_gpa_fault = false;
 }
 
+static inline unsigned long get_mmu_u_pptb_reg(void)
+{
+	return NATIVE_READ_MMU_U_PPTB_REG();
+}
+
+static inline unsigned long get_mmu_pid_reg(void)
+{
+	return NATIVE_READ_MMU_PID_REG();
+}
+
 static inline hpa_t
 kvm_get_gp_phys_root(struct kvm_vcpu *vcpu)
 {
@@ -285,6 +295,11 @@ static inline struct kvm_mmu_page *page_header(hpa_t shadow_page)
 
 	return (struct kvm_mmu_page *)page_private(page);
 }
+
+extern void kvm_get_spt_translation(struct kvm_vcpu *vcpu, e2k_addr_t address,
+				    pgdval_t *pgd, pudval_t *pud, pmdval_t *pmd,
+				    pteval_t *pte, int *pt_level);
+extern unsigned long kvm_get_gva_to_hva(struct kvm_vcpu *vcpu, gva_t gva);
 
 static inline gpa_t kvm_hva_to_gpa(struct kvm *kvm, unsigned long hva)
 {

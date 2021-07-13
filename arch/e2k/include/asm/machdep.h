@@ -39,10 +39,13 @@ enum {
 	CPU_HWBUG_SPURIOUS_EXC_DATA_DEBUG,
 	CPU_HWBUG_TLB_FLUSH_L1D,
 	CPU_HWBUG_GUEST_ASYNC_PM,
+	CPU_HWBUG_E16C_SLEEP,
 	CPU_HWBUG_L1I_STOPS_WORKING,
 	CPU_HWBUG_CLW_STALE_L1_ENTRY,
 	CPU_HWBUG_C3_WAIT_MA_C,
 	CPU_HWBUG_VIRT_SCLKM3_INTC,
+	CPU_HWBUG_VIRT_PSIZE_INTERCEPTION,
+	CPU_HWBUG_USD_ALIGNMENT,
 	CPU_FEAT_WC_PCI_PREFETCH,
 	CPU_FEAT_FLUSH_DC_IC,
 	CPU_FEAT_EPIC,
@@ -52,7 +55,6 @@ enum {
 	CPU_FEAT_ISET_V3,
 	CPU_FEAT_ISET_V5,
 	CPU_FEAT_ISET_V6,
-	CPU_HWBUG_E16C_SLEEP,
 	NR_CPU_FEATURES
 };
 
@@ -298,7 +300,8 @@ CPUHAS(CPU_HWBUG_DMA_AT_APIC_ADDR,
 		false,
 		cpu == IDR_ES2_DSP_MDL);
 /* #88644 - data profiling events are lost if overflow happens
- * under closed NM interrupts.
+ * under closed NM interrupts; also DDMCR writing does not clear
+ * pending exc_data_debug exceptions.
  * Workaround - disable data monitor profiling in kernel. */
 CPUHAS(CPU_HWBUG_KERNEL_DATA_MONITOR,
 		!IS_ENABLED(CONFIG_CPU_ES2) && !IS_ENABLED(CONFIG_CPU_E2S) &&
@@ -491,6 +494,22 @@ CPUHAS(CPU_HWBUG_VIRT_SCLKM3_INTC,
 		cpu == IDR_E16C_MDL && revision == 0 ||
 		cpu == IDR_E12C_MDL && revision == 0 ||
 		cpu == IDR_E2C3_MDL && revision == 0);
+/* #130039 - intercepting some specific sequences of call/return/setwd
+ * (that change WD.psize in a specific way) does not work.
+ * Workaround - avoid those sequences. */
+CPUHAS(CPU_HWBUG_VIRT_PSIZE_INTERCEPTION,
+		IS_ENABLED(CONFIG_E2K_MACHINE),
+		IS_ENABLED(CONFIG_CPU_E16C) || IS_ENABLED(CONFIG_CPU_E2C3),
+		(cpu == IDR_E16C_MDL || cpu == IDR_E2C3_MDL) && revision == 0);
+/* #129848 - alignment of usd_hi write depends on current usd_lo.p
+ * Workaround - write usd_lo before usd_hi, while keeping 2 tact distance from sbr write.
+ * Valid sequences are: sbr, nop, usd.lo, usd.hi OR sbr, usd.lo, usd.hi, usd.lo */
+CPUHAS(CPU_HWBUG_USD_ALIGNMENT,
+		IS_ENABLED(CONFIG_E2K_MACHINE) && !IS_ENABLED(CONFIG_CPU_E16C) &&
+		!IS_ENABLED(CONFIG_CPU_E2C3),
+		!IS_ENABLED(CONFIG_CPU_E12C),
+		cpu == IDR_E16C_MDL && revision <= 1 ||
+		cpu == IDR_E2C3_MDL && revision <= 1);
 /* Rely on IDR instead of iset version to choose between APIC and EPIC.
  * For guest we use it's own fake IDR so that we choose between APIC and
  * EPIC based on what hardware guest *thinks* it's being executed on. */

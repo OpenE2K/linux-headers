@@ -744,6 +744,7 @@ typedef struct kvm_sw_cpu_context {
 	u64 rpr_hi;
 	u64 tcd;
 
+#ifdef CONFIG_CLW_ENABLE
 	mmu_reg_t us_cl_d;
 	clw_reg_t us_cl_b;
 	clw_reg_t us_cl_up;
@@ -751,6 +752,7 @@ typedef struct kvm_sw_cpu_context {
 	clw_reg_t us_cl_m1;
 	clw_reg_t us_cl_m2;
 	clw_reg_t us_cl_m3;
+#endif
 } kvm_sw_cpu_context_t;
 
 /*

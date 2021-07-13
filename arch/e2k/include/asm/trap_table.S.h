@@ -146,9 +146,10 @@
 .macro	HANDLER_TRAMPOLINE ctprN, scallN, fn, wbsL
 /* Force load OSGD->GD. Alternative is to use non-0 CUI for kernel */
 {
-	nop
 	sdisp	\ctprN, \scallN
 }
+	/* CPU_HWBUG_VIRT_PSIZE_INTERCEPTION */
+	{ nop } { nop } { nop } { nop }
 	call	\ctprN, wbs=\wbsL
 	disp	\ctprN, \fn
 	SWITCH_HW_STACKS_FROM_USER()

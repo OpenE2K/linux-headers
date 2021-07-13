@@ -241,6 +241,7 @@ typedef struct thread_info {
 					/* hypercall */
 /* End of flags only for virtualization support */
 #define TIF_SYSCALL_TRACEPOINT	30	/* syscall tracepoint instrumentation */
+#define TIF_NAPI_WORK		31	/* napi_wq_worker() is running */
 
 #define _TIF_SYSCALL_TRACE	(1 << TIF_SYSCALL_TRACE)
 #define _TIF_NOTIFY_RESUME	(1 << TIF_NOTIFY_RESUME)
@@ -266,6 +267,7 @@ typedef struct thread_info {
 #define _TIF_LIGHT_HYPERCALL	(1 << TIF_LIGHT_HYPERCALL)
 #define _TIF_GENERIC_HYPERCALL	(1 << TIF_GENERIC_HYPERCALL)
 #define _TIF_SYSCALL_TRACEPOINT	(1 << TIF_SYSCALL_TRACEPOINT)
+#define _TIF_NAPI_WORK		(1 << TIF_NAPI_WORK)
 
 #define _TIF_WORK_SYSCALL_TRACE	(_TIF_SYSCALL_TRACE |		\
 				 _TIF_KERNEL_TRACE |		\

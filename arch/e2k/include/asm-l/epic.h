@@ -77,6 +77,15 @@ extern void epic_send_IPI_mask_allbutself(const struct cpumask *mask,
 extern void epic_wait_icr_idle(void);
 extern void clear_cepic(void);
 
+extern bool pcsm_adjust_enable;
+
+struct pcs_handle {
+	void (*pcs_interrupt)(void);
+};
+
+extern void register_pcs_handle(const struct pcs_handle *handle);
+extern void unregister_pcs_handle(void);
+
 extern __visible void epic_smp_timer_interrupt(struct pt_regs *regs);
 extern __visible void epic_smp_spurious_interrupt(struct pt_regs *regs);
 extern __visible void epic_smp_error_interrupt(struct pt_regs *regs);

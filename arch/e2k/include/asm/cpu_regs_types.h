@@ -2241,6 +2241,7 @@ typedef	union e2k_fpsr {
 #define	FPSR_reg	word
 
 typedef	union {
+	u32 half_word[2];
 	struct {
 		u32 user    : 1;
 		u32 system  : 1;

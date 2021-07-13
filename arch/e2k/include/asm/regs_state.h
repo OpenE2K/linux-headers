@@ -48,6 +48,7 @@
 #include <asm/monitors.h>
 #include <asm/mmu.h>
 #include <asm/mmu_regs.h>
+#include <asm/perf_event_types.h>
 #include <asm/system.h>
 #include <asm/ptrace.h>
 #include <asm/p2v/boot_head.h>
@@ -219,14 +220,6 @@ do {									\
 	NATIVE_DO_SAVE_MONITOR_COUNTERS(sw_regs);			\
 } while (0)
 
-/*
- * When we use monitor registers, we count monitor events for the whole system,
- * so DIMAR0, DIMAR1, DDMAR0 and DDMAR1 registers are not depend on process and
- * need not be saved while process switching. DIMCR and DDMCR registers are not
- * depend on process too, but they should be saved while process switching,
- * because they are used to determine monitoring start moment during monitor
- * events counting for a process.
- */
 static inline void native_save_user_only_regs(struct sw_regs *sw_regs)
 {
 	if (machine.save_dimtp)
@@ -946,27 +939,46 @@ static inline void native_restore_user_only_regs(struct sw_regs *sw_regs)
 	}
 }
 
-#ifdef	CONFIG_PERF_EVENTS
-DECLARE_PER_CPU(u8, perf_monitors_used);
-DECLARE_PER_CPU(u8, perf_bps_used);
-# define is_perf_using_monitors	__this_cpu_read(perf_monitors_used)
-# define is_perf_using_bps	__this_cpu_read(perf_bps_used)
-#else	/* ! CONFIG_PERF_EVENTS */
-#define	is_perf_using_monitors	false
-#define	is_perf_using_bps	false
-#endif	/* CONFIG_PERF_EVENTS */
-
 static inline void native_clear_user_only_regs(void)
 {
-	if (!is_perf_using_bps) {
+	u8 monitors_used = perf_read_monitors_used();
+	u8 bps_used = perf_read_bps_used();
+	if (!bps_used) {
 		NATIVE_WRITE_DIBCR_REG_VALUE(0);
 		NATIVE_WRITE_DDBCR_REG_VALUE(0);
 	}
-	if (!MONITORING_IS_ACTIVE && !is_perf_using_monitors) {
-		NATIVE_WRITE_DIMCR_REG_VALUE(0);
-		NATIVE_WRITE_DIBSR_REG_VALUE(0);
-		NATIVE_WRITE_DDMCR_REG_VALUE(0);
-		NATIVE_WRITE_DDBSR_REG_VALUE(0);
+	if (!MONITORING_IS_ACTIVE) {
+		if (!monitors_used) {
+			NATIVE_WRITE_DIMCR_REG_VALUE(0);
+			NATIVE_WRITE_DIBSR_REG_VALUE(0);
+			NATIVE_WRITE_DDMCR_REG_VALUE(0);
+			NATIVE_WRITE_DDBSR_REG_VALUE(0);
+		} else {
+			e2k_dimcr_t dimcr = NATIVE_READ_DIMCR_REG();
+			e2k_ddmcr_t ddmcr = NATIVE_READ_DDMCR_REG();
+			e2k_dibsr_t dibsr = NATIVE_READ_DIBSR_REG();
+			e2k_ddbsr_t ddbsr = NATIVE_READ_DDBSR_REG();
+			if (!(monitors_used & DIM0)) {
+				dimcr.half_word[0] = 0;
+				dibsr.m0 = 0;
+			}
+			if (!(monitors_used & DIM1)) {
+				dimcr.half_word[1] = 0;
+				dibsr.m1 = 0;
+			}
+			if (!(monitors_used & DDM0)) {
+				ddmcr.half_word[0] = 0;
+				ddbsr.m0 = 0;
+			}
+			if (!(monitors_used & DDM1)) {
+				ddmcr.half_word[1] = 0;
+				ddbsr.m1 = 0;
+			}
+			NATIVE_WRITE_DIMCR_REG(dimcr);
+			NATIVE_WRITE_DDMCR_REG(ddmcr);
+			NATIVE_WRITE_DIBSR_REG(dibsr);
+			NATIVE_WRITE_DDBSR_REG(ddbsr);
+		}
 	}
 }
 
@@ -1299,7 +1311,6 @@ native_set_current_thread_info(struct thread_info *thread,
 	set_osgd_task_struct(task);
 }
 
-
 static inline void
 set_current_thread_info(struct thread_info *thread, struct task_struct *task)
 {
@@ -1307,6 +1318,22 @@ set_current_thread_info(struct thread_info *thread, struct task_struct *task)
 	E2K_SET_DGREG_NV(CURRENT_TASK_GREG, task);
 	set_osgd_task_struct(task);
 }
+
+#define	SAVE_PSYSCALL_RVAL(regs, _rval, _rval1, _rval2, _rv1_tag,	\
+			   _rv2_tag, _return_desk)			\
+({									\
+	(regs)->sys_rval = (_rval);					\
+	(regs)->rval1 = (_rval1);					\
+	(regs)->rval2 = (_rval2);					\
+	(regs)->rv1_tag = (_rv1_tag);					\
+	(regs)->rv2_tag = (_rv2_tag);					\
+	(regs)->return_desk = (_return_desk);				\
+})
+
+#define	SAVE_SYSCALL_RVAL(regs, rval)					\
+({									\
+	(regs)->sys_rval = (rval);					\
+})
 
 #endif /* _E2K_REGS_STATE_H */
 

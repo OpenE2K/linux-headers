@@ -1038,19 +1038,26 @@ _Pragma("no_asm_inline")						\
 		      : clobbers); \
 })
 
-
 #define NATIVE_EXIT_HANDLE_SYSCALL(sbr, usd_hi, usd_lo, upsr) \
 ({ \
-	asm volatile ("{rwd %0, %%sbr}" \
-		      "{rwd %1, %%usd.hi}" \
+	asm volatile (ALTERNATIVE_1_ALTINSTR \
+		      /* CPU_HWBUG_USD_ALIGNMENT version */ \
+			      "{rwd %0, %%sbr;" \
+			      " nop}" \
+		      ALTERNATIVE_2_OLDINSTR \
+		      /* Default version */ \
+			      "{rwd %0, %%sbr}" \
+		      ALTERNATIVE_3_FEATURE(%[facility]) \
 		      "{rwd %2, %%usd.lo}" \
+		      "{rwd %1, %%usd.hi}" \
 		      "{rws %3, %%upsr;" \
 		      " nop 4}\n" \
 		      : \
 		      : "ri" ((__e2k_u64_t) (sbr)), \
 			"ri" ((__e2k_u64_t) (usd_hi)), \
 			"ri" ((__e2k_u64_t) (usd_lo)), \
-			"ri" ((__e2k_u32_t) (upsr))); \
+			"ri" ((__e2k_u32_t) (upsr)), \
+			[facility] "i" (CPU_HWBUG_USD_ALIGNMENT)); \
 })
 
 
@@ -1092,6 +1099,15 @@ _Pragma("no_asm_inline")						\
 		: \
 		: "r" ((__e2k_u64_t) (val))); \
 })
+
+#define NATIVE_SET_MMUREG_CLOSED(reg_mnemonic, val, nop) \
+({ \
+	asm volatile ("{nop " #nop "\n" \
+		      " mmurw %0, %%" #reg_mnemonic "}" \
+		      : \
+		      : "r" ((u64) (val))); \
+})
+
 
 #define NATIVE_TAGGED_LOAD_TO_MMUREG(reg_mnemonic, _addr) \
 do { \

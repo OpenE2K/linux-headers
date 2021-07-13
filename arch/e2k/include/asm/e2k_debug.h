@@ -23,8 +23,6 @@
 #include <asm/e2k.h>
 #include <asm/pgtable_def.h>
 
-#define	CHK_DEBUGGER(trapnr, signr, error_code, address, regs, after)
-
 #define	IS_KERNEL_THREAD(task, mm) \
 ({ \
 	e2k_addr_t ps_base; \
@@ -248,6 +246,8 @@ host_ftrace_dump(void)
 {
 	return;
 }
+
+static const bool kvm_debug = false;
 #else	/* CONFIG_VIRTUALIZATION */
 /* it is native host kernel with virtualization support */
 /* or it is paravirtualized host/guest kernel */

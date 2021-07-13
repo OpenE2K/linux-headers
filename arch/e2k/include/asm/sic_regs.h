@@ -204,6 +204,18 @@
 #define SIC_mc_ch		0x400
 #define SIC_mc_status		0x44c
 
+#define SIC_mc_opmb		0x424
+#define SIC_mc0_opmb		0x414
+#define SIC_mc1_opmb		0x454
+#define SIC_mc2_opmb		0x494
+#define SIC_mc3_opmb		0x4d4
+
+#define SIC_mc_cfg		0x418
+#define SIC_mc0_cfg		0x418
+#define SIC_mc1_cfg		0x458
+#define SIC_mc2_cfg		0x498
+#define SIC_mc3_cfg		0x4d8
+
 /* HMU */
 #define SIC_hmu_mic		0xd00
 #define SIC_hmu0_int		0xd40
@@ -1084,6 +1096,79 @@ typedef	union e2k_mc_ecc_struct {		/* Structure word */
 #define E2K_MC_ECC_ue		fields.ue	/* multiple-error flag */
 #define E2K_MC_ECC_secnt	fields.secnt	/* single error counter */
 #define E2K_MC_ECC_reg		word
+
+
+/*
+ * Read/Write MCX_OPMb (X={0, 1, 2, 3}) registers
+ * ! only for P1 processor type !
+ */
+typedef	unsigned int	e2k_mc_opmb_t;	/* single word (32 bits) */
+typedef	struct e2k_mc_opmb_fields {
+	e2k_mc_opmb_t	ct0		: 3;	/* [0:2] */
+	e2k_mc_opmb_t	ct1		: 3;	/* [3:5] */
+	e2k_mc_opmb_t	pbm0		: 2;	/* [6:7] */
+	e2k_mc_opmb_t	pbm1		: 2;	/* [8:9] */
+	e2k_mc_opmb_t	rm		: 1;	/* [10] */
+	e2k_mc_opmb_t	rdodt		: 1;	/* [11] */
+	e2k_mc_opmb_t	wrodt		: 1;	/* [12] */
+	e2k_mc_opmb_t	bl8int		: 1;	/* [13] */
+	e2k_mc_opmb_t	mi_fast		: 1;	/* [14] */
+	e2k_mc_opmb_t	mt		: 1;	/* [15] */
+	e2k_mc_opmb_t	il		: 1;	/* [16] */
+	e2k_mc_opmb_t	rcven_del	: 2;	/* [17:18] */
+	e2k_mc_opmb_t	mc_ps		: 1;	/* [19] */
+	e2k_mc_opmb_t	arp_en		: 1;	/* [20] */
+	e2k_mc_opmb_t	flt_brop	: 1;	/* [21] */
+	e2k_mc_opmb_t	flt_rdpr	: 1;	/* [22] */
+	e2k_mc_opmb_t	flt_blk		: 1;	/* [23] */
+	e2k_mc_opmb_t	parerr		: 1;	/* [24] */
+	e2k_mc_opmb_t	cmdpack		: 1;	/* [25] */
+	e2k_mc_opmb_t	sldwr		: 1;	/* [26] */
+	e2k_mc_opmb_t	sldrd		: 1;	/* [27] */
+	e2k_mc_opmb_t	mirr		: 1;	/* [28] */
+	e2k_mc_opmb_t	twrwr		: 2;	/* [29:30] */
+	e2k_mc_opmb_t	mcln		: 1;	/* [31] */
+} e2k_mc_opmb_fields_t;
+typedef	union e2k_mc_opmb_struct {		/* Structure word */
+	e2k_mc_opmb_fields_t	fields;		/* as fields */
+	e2k_mc_opmb_t		word;		/* as entire register */
+} e2k_mc_opmb_struct_t;
+
+#define E2K_MC_OPMB_pbm0	fields.pbm0	/* physycal bank map slot 0 */
+#define E2K_MC_OPMB_pbm1	fields.pbm1	/* physycal bank map slot 1 */
+#define E2K_MC_OPMB_reg		word
+
+/*
+ * Read/Write MCX_CFG (X={0, 1, 2, 3}) registers
+ * P9, E2C3, E12 and E16 processor type
+ */
+typedef	unsigned int	e2k_mc_cfg_t;	/* single word (32 bits) */
+typedef	struct e2k_mc_cfg_fields {
+	e2k_mc_cfg_t	ct0		: 3;	/* [0:2] */
+	e2k_mc_cfg_t	ct1		: 3;	/* [3:5] */
+	e2k_mc_cfg_t	pbm0		: 2;	/* [6:7] */
+	e2k_mc_cfg_t	pbm1		: 2;	/* [8:9] */
+	e2k_mc_cfg_t	rm		: 1;	/* [10] */
+	e2k_mc_cfg_t	reserve1	: 2;	/* [11:12] */
+	e2k_mc_cfg_t	mirr		: 1;	/* [13] */
+	e2k_mc_cfg_t	sf		: 3;	/* [14:16] */
+	e2k_mc_cfg_t	mt		: 1;	/* [17] */
+	e2k_mc_cfg_t	cs8		: 1;	/* [18] */
+	e2k_mc_cfg_t	ptrr_mode	: 2;	/* [19:20] */
+	e2k_mc_cfg_t	mcrc		: 1;	/* [21] */
+	e2k_mc_cfg_t	odt_ext		: 2;	/* [22:23] */
+	e2k_mc_cfg_t	pbswap		: 1;	/* [24] */
+	e2k_mc_cfg_t	dqw		: 2;	/* [25:26] */
+	e2k_mc_cfg_t	pda_sel		: 5;	/* [27:31] */
+} e2k_mc_cfg_fields_t;
+typedef	union e2k_mc_cfg_struct {		/* Structure word */
+	e2k_mc_cfg_fields_t	fields;		/* as fields */
+	e2k_mc_cfg_t		word;		/* as entire register */
+} e2k_mc_cfg_struct_t;
+
+#define E2K_MC_CFG_pbm0		fields.pbm0	/* physycal bank map slot 0 */
+#define E2K_MC_CFG_pbm1		fields.pbm1	/* physycal bank map slot 1 */
+#define E2K_MC_CFG_reg		word
 
 /*
  * Read/Write IPCC_CSRX (X={1, 2, 3}) registers
