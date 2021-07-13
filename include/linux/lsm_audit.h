@@ -99,9 +99,6 @@ struct common_audit_data {
 #ifdef CONFIG_SECURITY_SMACK
 		struct smack_audit_data *smack_audit_data;
 #endif
-#ifdef CONFIG_MCST_SECURITY_ELMAC
-		struct elmac_audit_data *elmac_audit_data;
-#endif
 #ifdef CONFIG_SECURITY_SELINUX
 		struct selinux_audit_data *selinux_audit_data;
 #endif

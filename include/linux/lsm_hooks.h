@@ -1807,13 +1807,6 @@ union security_list_options {
 	void (*audit_rule_free)(void *lsmrule);
 #endif /* CONFIG_AUDIT */
 
-#ifdef CONFIG_MCST_SECURITY_ELMAC
-#ifdef CONFIG_MCST_SECURITY_ELMAC_HIDING_FILES
-	int (*inode_pre_permission)(struct inode *inode, int mask);
-	int (*iterate_dir)(struct file *file, struct dir_context *ctx,
-	      bool shared);
-#endif	/* CONFIG_MCST_SECURITY_ELMAC_HIDING_FILES */
-#endif	/* CONFIG_MCST_SECURITY_ELMAC */
 
 #ifdef CONFIG_BPF_SYSCALL
 	int (*bpf)(int cmd, union bpf_attr *attr,
@@ -2058,12 +2051,6 @@ struct security_hook_heads {
 	struct hlist_head audit_rule_match;
 	struct hlist_head audit_rule_free;
 #endif /* CONFIG_AUDIT */
-#ifdef CONFIG_MCST_SECURITY_ELMAC
-#ifdef CONFIG_MCST_SECURITY_ELMAC_HIDING_FILES
-	struct hlist_head inode_pre_permission;
-	struct hlist_head iterate_dir;
-#endif	/* CONFIG_MCST_SECURITY_ELMAC_HIDING_FILES */
-#endif	/* CONFIG_MCST_SECURITY_ELMAC */
 #ifdef CONFIG_BPF_SYSCALL
 	struct hlist_head bpf;
 	struct hlist_head bpf_map;

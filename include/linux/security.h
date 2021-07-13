@@ -445,13 +445,6 @@ int security_inode_notifysecctx(struct inode *inode, void *ctx, u32 ctxlen);
 int security_inode_setsecctx(struct dentry *dentry, void *ctx, u32 ctxlen);
 int security_inode_getsecctx(struct inode *inode, void **ctx, u32 *ctxlen);
 int security_locked_down(enum lockdown_reason what);
-#ifdef CONFIG_MCST_SECURITY_ELMAC
-#ifdef CONFIG_MCST_SECURITY_ELMAC_HIDING_FILES
-int security_inode_pre_permission(struct inode *inode, int mask);
-int security_iterate_dir(struct file *file, struct dir_context *ctx,
-						 bool shared);
-#endif	/* CONFIG_MCST_SECURITY_ELMAC_HIDING_FILES */
-#endif	/* CONFIG_MCST_SECURITY_ELMAC */
 #else /* CONFIG_SECURITY */
 
 static inline int call_blocking_lsm_notifier(enum lsm_event event, void *data)
@@ -859,7 +852,7 @@ static inline int security_inode_killpriv(struct dentry *dentry)
 
 static inline int security_inode_getsecurity(struct inode *inode, const char *name, void **buffer, bool alloc)
 {
-	return -EOPNOTSUPP;
+	return cap_inode_getsecurity(inode, name, buffer, alloc);
 }
 
 static inline int security_inode_setsecurity(struct inode *inode, const char *name, const void *value, size_t size, int flags)
@@ -1279,26 +1272,6 @@ static inline int security_locked_down(enum lockdown_reason what)
 {
 	return 0;
 }
-#ifdef CONFIG_MCST_SECURITY_ELMAC
-#ifdef CONFIG_MCST_SECURITY_ELMAC_HIDING_FILES
-static inline int security_inode_pre_permission(struct inode *inode, int mask)
-{
-	return 0;
-}
-int security_iterate_dir(struct file *file, struct dir_context *ctx,
-			 bool shared)
-{
-	int res;
-
-	if (shared)
-		res = file->f_op->iterate_shared(file, ctx);
-	else
-		res = file->f_op->iterate(file, ctx);
-
-	return res;
-}
-#endif	/* CONFIG_MCST_SECURITY_ELMAC_HIDING_FILES */
-#endif	/* CONFIG_MCST_SECURITY_ELMAC */
 #endif	/* CONFIG_SECURITY */
 
 #ifdef CONFIG_SECURITY_NETWORK

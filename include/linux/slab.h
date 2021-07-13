@@ -148,9 +148,6 @@ struct mem_cgroup;
 void __init kmem_cache_init(void);
 bool slab_is_available(void);
 
-#ifdef CONFIG_MAC_
-typedef struct kmem_cache kmem_cache_t;
-#endif
 
 extern bool usercopy_fallback;
 

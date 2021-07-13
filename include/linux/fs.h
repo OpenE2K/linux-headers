@@ -1449,9 +1449,6 @@ struct super_block {
 	struct rw_semaphore	s_umount;
 	int			s_count;
 	atomic_t		s_active;
-#ifdef CONFIG_MCST_FS_SECDEL
-	int			overwriting_count;
-#endif
 #ifdef CONFIG_SECURITY
 	void                    *s_security;
 #endif
@@ -1780,16 +1777,6 @@ typedef int (*filldir_t)(struct dir_context *, const char *, int, loff_t, u64,
 struct dir_context {
 	filldir_t actor;
 	loff_t pos;
-#if defined(CONFIG_MCST_SECURITY_ELMAC) && defined(CONFIG_MCST_SECURITY_ELMAC_HIDING_FILES)
-/* previous line is long becouse of community script 'unifdef'
- * is not able to handle multi-lines */
-	/* Required to keep the original callback
-	 * in the security_iterate_dir hook. */
-	const filldir_t saved_actor;
-	/* Required to get the inode structure from the pathname
-	 * in the security_iterate hook. */
-	struct file *file;
-#endif
 };
 
 struct block_device_operations;
@@ -2162,6 +2149,10 @@ static inline void init_sync_kiocb(struct kiocb *kiocb, struct file *filp)
  *
  * I_CREATING		New object's inode in the middle of setting up.
  *
+ * I_SYNC_QUEUED	Inode is queued in b_io or b_more_io writeback lists.
+ *			Used to detect that mark_inode_dirty() should not move
+ * 			inode between dirty lists.
+ *
  * Q: What is the difference between I_WILL_FREE and I_FREEING?
  */
 #define I_DIRTY_SYNC		(1 << 0)
@@ -2179,11 +2170,11 @@ static inline void init_sync_kiocb(struct kiocb *kiocb, struct file *filp)
 #define I_DIO_WAKEUP		(1 << __I_DIO_WAKEUP)
 #define I_LINKABLE		(1 << 10)
 #define I_DIRTY_TIME		(1 << 11)
-#define __I_DIRTY_TIME_EXPIRED	12
-#define I_DIRTY_TIME_EXPIRED	(1 << __I_DIRTY_TIME_EXPIRED)
+#define I_DIRTY_TIME_EXPIRED	(1 << 12)
 #define I_WB_SWITCH		(1 << 13)
 #define I_OVL_INUSE		(1 << 14)
 #define I_CREATING		(1 << 15)
+#define I_SYNC_QUEUED		(1 << 17)
 
 #define I_DIRTY_INODE (I_DIRTY_SYNC | I_DIRTY_DATASYNC)
 #define I_DIRTY (I_DIRTY_INODE | I_DIRTY_PAGES)
@@ -2613,12 +2604,6 @@ static inline bool sb_is_blkdev_sb(struct super_block *sb)
 {
 	return sb == blockdev_superblock;
 }
-#ifdef CONFIG_MCST_FS_SECDEL
-extern int blkdev_zero_blocks(struct super_block *sb,
-			int (*trim_fs_func)(struct super_block *sb,
-			struct fstrim_range *range),
-			sector_t block, sector_t count);
-#endif
 #else
 static inline void bd_forget(struct inode *inode) {}
 static inline int sync_blockdev(struct block_device *bdev) { return 0; }
