@@ -7,8 +7,9 @@
 #define _E2K_KVM_TLBFLUSH_H
 
 #include <linux/mm.h>
-#include <asm/kvm/thread_info.h>
+#include <linux/kvm_host.h>
 
+#include <asm/kvm/hypercall.h>
 
 /*
  * Guest VM support on host
@@ -20,146 +21,86 @@
  *  - flush_tlb_pgtables(mm, start, end) flushes a range of page tables
  */
 
-#ifndef	CONFIG_VIRTUALIZATION
-/* it is native kernel without any virtualization */
-static __always_inline bool
-__flush_guest_cpu_root_pt_page(struct vm_area_struct *vma, e2k_addr_t addr)
-{
-	return false;	/* none any guests and guest addresses */
-}
-static __always_inline bool
-__flush_guest_cpu_root_pt_range(struct mm_struct *mm,
-				e2k_addr_t start, e2k_addr_t end)
-{
-	return false;	/* none any guests and guest addresses */
-}
-static __always_inline bool
-__flush_guest_cpu_root_pt_mm(struct mm_struct *mm)
-{
-	return false;	/* none any guests and guest addresses */
-}
-static __always_inline bool
-__flush_guest_cpu_root_pt(void)
-{
-	return false;	/* none any guests and guest addresses */
-}
-#else	/* CONFIG_VIRTUALIZATION */
-extern void kvm_flush_guest_tlb_mm(struct gmm_struct *gmm);
-extern void kvm_flush_guest_tlb_page(struct gmm_struct *gmm, e2k_addr_t addr);
-extern void kvm_flush_guest_tlb_range(struct gmm_struct *gmm,
-				e2k_addr_t start, e2k_addr_t end);
-extern void kvm_flush_guest_tlb_pgtables(struct gmm_struct *gmm,
-				e2k_addr_t start, e2k_addr_t end);
-extern void kvm_flush_guest_tlb_range_and_pgtables(struct gmm_struct *gmm,
-				e2k_addr_t start, e2k_addr_t end);
+extern void mmu_pv_flush_tlb_address(struct kvm_vcpu *vcpu, gmm_struct_t *gmm,
+			e2k_addr_t addr);
+extern void mmu_pv_flush_tlb_address_pgtables(struct kvm_vcpu *vcpu,
+			gmm_struct_t *gmm,
+			e2k_addr_t addr);
+extern void mmu_pv_flush_tlb_page(struct kvm_vcpu *vcpu, gmm_struct_t *gmm,
+			e2k_addr_t addr);
+extern void mmu_pv_flush_tlb_mm(struct kvm_vcpu *vcpu, gmm_struct_t *gmm);
+extern void mmu_pv_flush_tlb_range(struct kvm_vcpu *vcpu, gmm_struct_t *gmm,
+			const e2k_addr_t start, const e2k_addr_t end);
+extern void mmu_pv_flush_pmd_tlb_range(struct kvm_vcpu *vcpu, gmm_struct_t *gmm,
+			unsigned long start, unsigned long end);
+extern void mmu_pv_flush_tlb_kernel_range(struct kvm_vcpu *vcpu, gmm_struct_t *gmm,
+			const e2k_addr_t start, const e2k_addr_t end);
+extern void mmu_pv_flush_tlb_pgtables(struct kvm_vcpu *vcpu, gmm_struct_t *gmm,
+			e2k_addr_t start, e2k_addr_t end);
+extern void mmu_pv_flush_tlb_range_and_pgtables(struct kvm_vcpu *vcpu,
+			gmm_struct_t *gmm,
+			e2k_addr_t start, e2k_addr_t end);
+extern void mmu_pv_flush_tlb_page_and_pgtables(struct kvm_vcpu *vcpu,
+			gmm_struct_t *gmm,
+			unsigned long address);
+extern void mmu_pv_flush_cpu_root_pt_mm(struct kvm_vcpu *vcpu, gmm_struct_t *gmm);
+extern void mmu_pv_flush_cpu_root_pt(struct kvm_vcpu *vcpu);
 
-/*
- * Functions to flush guest CPU root PT on host should return boolean value:
- *	true	if address or MM is from guest VM space and flushing was done
- *	false	if address or MM is not from guest VM space or flushing cannot
- *		be done
- */
-extern bool kvm_do_flush_guest_cpu_root_pt_page(struct vm_area_struct *vma,
-					e2k_addr_t addr);
-extern bool kvm_do_flush_guest_cpu_root_pt_range(struct mm_struct *mm,
-					e2k_addr_t start, e2k_addr_t end);
-extern bool kvm_do_flush_guest_cpu_root_pt_mm(struct mm_struct *mm);
-extern bool kvm_do_flush_guest_cpu_root_pt(void);
+extern long kvm_pv_sync_and_flush_tlb(struct kvm_vcpu *vcpu,
+			mmu_spt_flush_t __user *flush_user);
+extern long kvm_pv_sync_addr_range(struct kvm_vcpu *vcpu,
+			gva_t start_gva, gva_t end_gva);
 
-static inline bool
-kvm_flush_guest_cpu_root_pt_page(struct vm_area_struct *vma, e2k_addr_t addr)
-{
-	if (MMU_IS_SEPARATE_PT()) {
-		/* cannot be any CPU root PTs */
-		return false;
-	} else if (!test_thread_flag(TIF_VIRTUALIZED_GUEST)) {
-		/* it is not guest VCPU process on host */
-		/* so cannot have guest VM */
-		return false;
-	} else if (paravirt_enabled()) {
-		/* it is guest process on guest and guest has not own guests */
-		return false;
-	}
-	return kvm_do_flush_guest_cpu_root_pt_page(vma, addr);
-}
+extern void mmu_pv_smp_flush_tlb_mm(struct kvm_vcpu *vcpu, gmm_struct_t *gmm);
+extern void mmu_pv_smp_flush_tlb_page(struct kvm_vcpu *vcpu, gmm_struct_t *gmm,
+			e2k_addr_t addr);
+extern void mmu_pv_smp_flush_tlb_range(struct kvm_vcpu *vcpu, gmm_struct_t *gmm,
+			e2k_addr_t start, e2k_addr_t end);
+extern void mmu_pv_smp_flush_pmd_tlb_range(struct kvm_vcpu *vcpu, gmm_struct_t *gmm,
+			e2k_addr_t start, e2k_addr_t end);
+extern void mmu_pv_smp_flush_tlb_kernel_range(struct kvm_vcpu *vcpu,
+			gmm_struct_t *gmm,
+			e2k_addr_t start, e2k_addr_t end);
+extern void mmu_pv_smp_flush_tlb_range_and_pgtables(struct kvm_vcpu *vcpu,
+			gmm_struct_t *gmm,
+			e2k_addr_t start, e2k_addr_t end);
 
-static inline bool
-kvm_flush_guest_cpu_root_pt_range(struct mm_struct *mm,
-					e2k_addr_t start, e2k_addr_t end)
-{
-	if (MMU_IS_SEPARATE_PT()) {
-		/* cannot be any CPU root PTs */
-		return false;
-	} else if (!test_thread_flag(TIF_VIRTUALIZED_GUEST)) {
-		/* it is not guest VCPU process on host */
-		/* so cannot have guest VM */
-		return false;
-	} else if (paravirt_enabled()) {
-		/* it is guest process on guest and guest has not own guests */
-		return false;
-	}
-	return kvm_do_flush_guest_cpu_root_pt_range(mm, start, end);
-}
+extern void host_flush_shadow_pt_tlb_range(struct kvm_vcpu *vcpu,
+			gva_t start, gva_t end, pgprot_t spte, int level);
 
-static inline bool
-kvm_flush_guest_cpu_root_pt_mm(struct mm_struct *mm)
-{
-	if (MMU_IS_SEPARATE_PT()) {
-		/* cannot be any CPU root PTs */
-		return false;
-	} else if (!test_thread_flag(TIF_VIRTUALIZED_GUEST)) {
-		/* it is not guest VCPU process on host */
-		/* so cannot have guest VM */
-		return false;
-	} else if (paravirt_enabled()) {
-		/* it is guest process on guest and guest has not own guests */
-		return false;
-	}
-	return kvm_do_flush_guest_cpu_root_pt_mm(mm);
-}
+extern void host_flush_shadow_pt_level_tlb(struct kvm *kvm, gmm_struct_t *gmm,
+			gva_t gva, int level, pgprot_t new_spte, pgprot_t old_spte);
 
-static inline bool
-kvm_flush_guest_cpu_root_pt(void)
-{
-	if (MMU_IS_SEPARATE_PT()) {
-		/* cannot be any CPU root PTs */
-		return false;
-	} else if (!test_thread_flag(TIF_VIRTUALIZED_GUEST)) {
-		/* it is not guest VCPU process on host */
-		/* so cannot have guest VM */
-		return false;
-	} else if (paravirt_enabled()) {
-		/* it is guest process on guest and guest has not own guests */
-		return false;
-	}
-	return kvm_do_flush_guest_cpu_root_pt();
-}
+#ifndef	CONFIG_SMP
+#define host_flush_tlb_mm(vcpu, gmm)	\
+		mmu_pv_flush_tlb_mm(vcpu, gmm)
+#define host_flush_tlb_page(vcpu, gmm, addr)	\
+		mmu_pv_flush_tlb_page(vcpu, gmm, addr)
+#define host_flush_tlb_range(vcpu, gmm, start, end) \
+		mmu_pv_flush_tlb_range(vcpu, gmm, start, end)
+#define host_flush_pmd_tlb_range(vcpu, gmm, start, end) \
+		mmu_pv_flush_pmd_tlb_range(vcpu, gmm, start, end)
+#define host_flush_tlb_mm_range(vcpu, gmm, start, end) \
+		mmu_pv_flush_tlb_range(vcpu, gmm, start, end)
+#define host_flush_tlb_kernel_range(vcpu, gmm, start, end) \
+		mmu_pv_flush_tlb_kernel_range(vcpu, gmm, start, end)
+#define host_flush_tlb_range_and_pgtables(vcpu, gmm, start, end) \
+		mmu_pv_flush_tlb_range_and_pgtables(vcpu, gmm, start, end)
+#else	/* CONFIG_SMP */
+#define host_flush_tlb_mm(vcpu, gmm)	\
+		mmu_pv_smp_flush_tlb_mm(vcpu, gmm)
+#define host_flush_tlb_page(vcpu, gmm, addr)	\
+		mmu_pv_smp_flush_tlb_page(vcpu, gmm, addr)
+#define host_flush_tlb_range(vcpu, gmm, start, end) \
+		mmu_pv_smp_flush_tlb_range(vcpu, gmm, start, end)
+#define host_flush_pmd_tlb_range(vcpu, gmm, start, end) \
+		mmu_pv_smp_flush_pmd_tlb_range(vcpu, gmm, start, end)
+#define host_flush_tlb_kernel_range(vcpu, gmm, start, end) \
+		mmu_pv_smp_flush_tlb_kernel_range(vcpu, gmm, start, end)
+#define host_flush_tlb_mm_range(vcpu, gmm, start, end) \
+		mmu_pv_smp_flush_tlb_range(vcpu, gmm, start, end)
+#define host_flush_tlb_range_and_pgtables(vcpu, gmm, start, end) \
+		mmu_pv_smp_flush_tlb_range_and_pgtables(vcpu, gmm, start, end)
+#endif	/* !CONFIG_SMP */
 
-#ifndef	CONFIG_KVM_GUEST_KERNEL
-/* it is native host kernel with virtualization support */
-/* or it is paravirtualized host/guest kernel */
-static inline bool
-__flush_guest_cpu_root_pt_page(struct vm_area_struct *vma, e2k_addr_t addr)
-{
-	return kvm_flush_guest_cpu_root_pt_page(vma, addr);
-}
-static inline bool
-__flush_guest_cpu_root_pt_range(struct mm_struct *mm,
-					e2k_addr_t start, e2k_addr_t end)
-{
-	return kvm_flush_guest_cpu_root_pt_range(mm, start, end);
-}
-static inline bool
-__flush_guest_cpu_root_pt_mm(struct mm_struct *mm)
-{
-	return kvm_flush_guest_cpu_root_pt_mm(mm);
-}
-static inline bool
-__flush_guest_cpu_root_pt(void)
-{
-	return kvm_flush_guest_cpu_root_pt();
-}
-
-#endif	/* ! CONFIG_KVM_GUEST_KERNEL */
-#endif	/* ! CONFIG_VIRTUALIZATION */
 #endif /* _E2K_KVM_TLBFLUSH_H */

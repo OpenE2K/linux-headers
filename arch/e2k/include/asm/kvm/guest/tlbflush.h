@@ -85,23 +85,25 @@ kvm_flush_tlb_range_and_pgtables(struct mm_struct *mm,
 		kvm_pv_flush_tlb_range_and_pgtables(mm, start, end);
 }
 #else /* CONFIG_SMP */
-extern void native_smp_flush_tlb_all(void);
-extern void native_smp_flush_tlb_mm(struct mm_struct *mm);
-extern void native_smp_flush_tlb_page(struct vm_area_struct *vma,
-			e2k_addr_t addr);
-extern void native_smp_flush_tlb_range(struct mm_struct *mm,
-			e2k_addr_t start, e2k_addr_t end);
-extern void native_smp_flush_pmd_tlb_range(struct mm_struct *mm,
-			e2k_addr_t start, e2k_addr_t end);
-extern void native_smp_flush_tlb_range_and_pgtables(struct mm_struct *mm,
-			e2k_addr_t start, e2k_addr_t end);
+extern void kvm_pv_smp_flush_tlb_mm(struct mm_struct *const mm);
+extern void kvm_pv_smp_flush_tlb_all(void);
+extern void kvm_pv_smp_flush_tlb_page(struct vm_area_struct *const vma,
+			const e2k_addr_t addr);
+extern void kvm_pv_smp_flush_tlb_range(struct mm_struct *const mm,
+			const e2k_addr_t start, const e2k_addr_t end);
+extern void kvm_pv_smp_flush_pmd_tlb_range(struct mm_struct *const mm,
+			const e2k_addr_t start, const e2k_addr_t end);
+extern void kvm_pv_smp_flush_tlb_range_and_pgtables(struct mm_struct *const mm,
+		const e2k_addr_t start, const e2k_addr_t end);
+extern void kvm_pv_smp_flush_tlb_kernel_range(e2k_addr_t start, e2k_addr_t end);
+
 static inline void
 kvm_flush_tlb_all(void)
 {
 	if (IS_HV_GM())
 		native_smp_flush_tlb_all();
 	else
-		kvm_pv_flush_tlb_all();
+		kvm_pv_smp_flush_tlb_all();
 }
 static inline void
 kvm_flush_tlb_mm(struct mm_struct *mm)
@@ -109,7 +111,7 @@ kvm_flush_tlb_mm(struct mm_struct *mm)
 	if (IS_HV_GM())
 		native_smp_flush_tlb_mm(mm);
 	else
-		kvm_pv_flush_tlb_mm(mm);
+		kvm_pv_smp_flush_tlb_mm(mm);
 }
 static inline void
 kvm_flush_tlb_page(struct vm_area_struct *vma, e2k_addr_t addr)
@@ -117,7 +119,7 @@ kvm_flush_tlb_page(struct vm_area_struct *vma, e2k_addr_t addr)
 	if (IS_HV_GM())
 		native_smp_flush_tlb_page(vma, addr);
 	else
-		kvm_pv_flush_tlb_page(vma->vm_mm, addr);
+		kvm_pv_smp_flush_tlb_page(vma, addr);
 }
 static inline void
 kvm_flush_tlb_range(struct mm_struct *mm, e2k_addr_t start, e2k_addr_t end)
@@ -125,7 +127,7 @@ kvm_flush_tlb_range(struct mm_struct *mm, e2k_addr_t start, e2k_addr_t end)
 	if (IS_HV_GM())
 		native_smp_flush_tlb_range(mm, start, end);
 	else
-		kvm_pv_flush_tlb_range(mm, start, end);
+		kvm_pv_smp_flush_tlb_range(mm, start, end);
 }
 static inline void
 kvm_flush_tlb_kernel_range(e2k_addr_t start, e2k_addr_t end)
@@ -133,7 +135,7 @@ kvm_flush_tlb_kernel_range(e2k_addr_t start, e2k_addr_t end)
 	if (IS_HV_GM())
 		native_smp_flush_tlb_all();
 	else
-		kvm_pv_flush_tlb_kernel_range(start, end);
+		kvm_pv_smp_flush_tlb_kernel_range(start, end);
 }
 static inline void
 kvm_flush_pmd_tlb_range(struct mm_struct *mm, e2k_addr_t start,
@@ -142,7 +144,7 @@ kvm_flush_pmd_tlb_range(struct mm_struct *mm, e2k_addr_t start,
 	if (IS_HV_GM())
 		native_smp_flush_pmd_tlb_range(mm, start, end);
 	else
-		kvm_pv_flush_pmd_tlb_range(mm, start, end);
+		kvm_pv_smp_flush_pmd_tlb_range(mm, start, end);
 }
 static inline void
 kvm_flush_tlb_range_and_pgtables(struct mm_struct *mm,
@@ -151,7 +153,7 @@ kvm_flush_tlb_range_and_pgtables(struct mm_struct *mm,
 	if (IS_HV_GM())
 		native_smp_flush_tlb_range_and_pgtables(mm, start, end);
 	else
-		kvm_pv_flush_tlb_range_and_pgtables(mm, start, end);
+		kvm_pv_smp_flush_tlb_range_and_pgtables(mm, start, end);
 }
 #endif	/* CONFIG_SMP */
 

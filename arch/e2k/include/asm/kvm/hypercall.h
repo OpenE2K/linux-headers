@@ -38,7 +38,6 @@
 
 #include <asm/e2k_api.h>
 #include <asm/cpu_regs_types.h>
-#include <asm/machdep.h>
 #include <asm/trap_def.h>
 #include <asm/kvm/guest/cpu.h>
 
@@ -619,6 +618,10 @@ HYPERVISOR_switch_to_expanded_guest_chain_stack(long delta_size,
 #define	KVM_HCALL_FTRACE_DUMP		123	/* dump host's ftrace buffer */
 #define	KVM_HCALL_DUMP_COMPLETION	125	/* show state or dump all */
 						/* stacks is completed */
+#define	KVM_HCALL_FAST_TAGGED_MEMORY_COPY_USER 127 /* fast tagged memory copy */
+						   /* to/from user */
+#define	KVM_HCALL_FAST_TAGGED_MEMORY_SET_USER  128 /* fast tagged memory set */
+						   /* at user */
 
 #define	KVM_HCALL_HOST_PRINTK		130	/* guest printk() on host */
 #define	KVM_HCALL_PRINT_GUEST_KERNEL_PTES 131	/* dump guest kernel address */
@@ -629,10 +632,10 @@ HYPERVISOR_switch_to_expanded_guest_chain_stack(long delta_size,
 #define KVM_HCALL_PV_ENABLE_ASYNC_PF		133 /* enable async pf */
 						    /* on current vcpu */
 #endif /* CONFIG_KVM_ASYNC_PF */
-#define KVM_HCALL_FLUSH_TLB_RANGE	134 /* sync given address range */
-					/* in page tables and flush tlb */
-#define KVM_HCALL_SYNC_ADDR_RANGE	135 /* sync ptes in page */
-					/* tables without flushing tlb */
+#define KVM_HCALL_MMU_PV_FLUSH_TLB	134	/* sync host's shadow PTs */
+						/* and flush tlb */
+#define KVM_HCALL_SYNC_ADDR_RANGE	135	/* sync host's shadow PTs */
+						/* without flushing tlb */
 #define	KVM_HCALL_GET_SPT_TRANSLATION	137	/* get full translation of guest */
 						/* address at shadow PTs */
 #define	KVM_HCALL_RECOVERY_FAULTED_TAGGED_STORE 141
@@ -1392,7 +1395,9 @@ extern void smp_send_refresh(void);
 static inline unsigned long
 HYPERVISOR_kvm_shutdown(void *msg, unsigned long reason)
 {
+#ifdef CONFIG_SMP
 	smp_send_refresh();
+#endif
 	return generic_hypercall2(KVM_HCALL_SHUTDOWN, (unsigned long)msg,
 					reason);
 }
@@ -1488,11 +1493,32 @@ HYPERVISOR_fast_tagged_memory_copy(void *dst, const void *src, size_t len,
 			len, strd_opcode, ldrd_opcode, prefetch);
 }
 static inline unsigned long
+HYPERVISOR_fast_tagged_memory_copy_user(void *dst, const void *src,
+		size_t len, size_t *copied,
+		unsigned long strd_opcode, unsigned long ldrd_opcode,
+		int prefetch)
+{
+	return generic_hypercall6(KVM_HCALL_FAST_TAGGED_MEMORY_COPY_USER,
+			(unsigned long)dst, (unsigned long)src,
+			len, (unsigned long)copied,
+			strd_opcode |
+				LDST_PREFETCH_FLAG_SET((unsigned long)!!prefetch),
+			ldrd_opcode);
+}
+static inline unsigned long
 HYPERVISOR_fast_tagged_memory_set(void *addr, u64 val, u64 tag,
 		size_t len, u64 strd_opcode)
 {
 	return generic_hypercall5(KVM_HCALL_FAST_TAGGED_MEMORY_SET,
 			(unsigned long)addr, val, tag, len, strd_opcode);
+}
+static inline unsigned long
+HYPERVISOR_fast_tagged_memory_set_user(void *addr, u64 val, u64 tag,
+		size_t len, size_t *cleared, u64 strd_opcode)
+{
+	return generic_hypercall6(KVM_HCALL_FAST_TAGGED_MEMORY_SET_USER,
+			(unsigned long)addr, val, tag, len,
+			(unsigned long)cleared, strd_opcode);
 }
 #ifdef CONFIG_KVM_ASYNC_PF
 static inline int HYPERVISOR_pv_enable_async_pf(u64 apf_reason_gpa,
@@ -1503,11 +1529,34 @@ static inline int HYPERVISOR_pv_enable_async_pf(u64 apf_reason_gpa,
 					apf_ready_vector, irq_controller);
 }
 #endif /* CONFIG_KVM_ASYNC_PF */
+
+/*
+ * The structure to flush guest virtual space at the host shadow PTs
+ */
+
+typedef enum mmu_flush_tlb_op {
+	undefined_tlb_op = 0,		/* undefined type of flush */
+	flush_all_tlb_op,		/* flush all TLB */
+	flush_mm_page_tlb_op,		/* flush a single page from TLB */
+	flush_mm_range_tlb_op,		/* flush a range of pages */
+	flush_mm_tlb_op,		/* flush a specified user mapping */
+	flush_pmd_range_tlb_op,		/* same as a range of pages, but for pmd's */
+	flush_pt_range_tlb_op,		/* flush a range of pages and page tables */
+	flush_kernel_range_tlb_op,	/* flush a kernel range of pages */
+} mmu_flush_tlb_op_t;
+
+typedef struct mmu_spt_flush {
+	mmu_flush_tlb_op_t	opc;	/* flush type (see above) */
+	int			gmm_id;	/* gmm ID */
+	unsigned long		start;	/* affress or start of range */
+	unsigned long		end;	/* end address of range */
+} mmu_spt_flush_t;
+
 static inline unsigned long
-HYPERVISOR_flush_tlb_range(e2k_addr_t start_gva, e2k_addr_t end_gva)
+HYPERVISOR_mmu_pv_flush_tlb(mmu_spt_flush_t *flush_info)
 {
-	return generic_hypercall2(KVM_HCALL_FLUSH_TLB_RANGE,
-			start_gva, end_gva);
+	return generic_hypercall1(KVM_HCALL_MMU_PV_FLUSH_TLB,
+			(unsigned long)flush_info);
 }
 static inline void
 HYPERVISOR_sync_addr_range(e2k_addr_t start_gva, e2k_addr_t end_gva)

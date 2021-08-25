@@ -12,6 +12,7 @@
 #include <asm/kvm/vcpu-regs-debug-inline.h>
 
 extern bool kvm_debug;
+extern bool kvm_ftrace_dump;
 
 /*
  * Some definitions to print/dump/show stacks

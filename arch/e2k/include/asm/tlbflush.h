@@ -36,6 +36,17 @@ extern void __flush_tlb_range_and_pgtables(struct mm_struct *mm,
 extern void __flush_tlb_address(e2k_addr_t addr);
 extern void __flush_tlb_address_pgtables(e2k_addr_t addr);
 
+extern void native_smp_flush_tlb_all(void);
+extern void native_smp_flush_tlb_mm(struct mm_struct *mm);
+extern void native_smp_flush_tlb_page(struct vm_area_struct *vma,
+			e2k_addr_t addr);
+extern void native_smp_flush_tlb_range(struct mm_struct *mm,
+			e2k_addr_t start, e2k_addr_t end);
+extern void native_smp_flush_pmd_tlb_range(struct mm_struct *mm,
+			e2k_addr_t start, e2k_addr_t end);
+extern void native_smp_flush_tlb_range_and_pgtables(struct mm_struct *mm,
+			e2k_addr_t start, e2k_addr_t end);
+
 #ifdef	CONFIG_COPY_USER_PGD_TO_KERNEL_ROOT_PT
 extern void __flush_cpu_root_pt_mm(struct mm_struct *mm);
 extern void __flush_cpu_root_pt(void);
@@ -86,17 +97,6 @@ extern void __flush_cpu_root_pt(void);
 
 #include <asm/smp.h>
 
-extern void native_smp_flush_tlb_all(void);
-extern void native_smp_flush_tlb_mm(struct mm_struct *mm);
-extern void native_smp_flush_tlb_page(struct vm_area_struct *vma,
-			e2k_addr_t addr);
-extern void native_smp_flush_tlb_range(struct mm_struct *mm,
-			e2k_addr_t start, e2k_addr_t end);
-extern void native_smp_flush_pmd_tlb_range(struct mm_struct *mm,
-			e2k_addr_t start, e2k_addr_t end);
-extern void native_smp_flush_tlb_range_and_pgtables(struct mm_struct *mm,
-			e2k_addr_t start, e2k_addr_t end);
-
 #define flush_tlb_all		native_smp_flush_tlb_all
 #define flush_tlb_mm		native_smp_flush_tlb_mm
 #define flush_tlb_page(vma, addr) native_smp_flush_tlb_page(vma, addr)
@@ -126,6 +126,8 @@ static inline void update_mmu_cache_pmd(struct vm_area_struct *vma,
 {
 }
 
+#ifdef	CONFIG_KVM_HOST_MODE
 #include <asm/kvm/tlbflush.h>
+#endif	/* CONFIG_KVM_HOST_MODE */
 
 #endif /* _E2K_TLBFLUSH_H */

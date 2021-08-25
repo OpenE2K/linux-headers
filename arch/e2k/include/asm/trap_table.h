@@ -162,6 +162,18 @@ extern const protected_system_call_func sys_call_table_entry8[NR_syscalls];
 extern const system_call_func sys_protcall_table[NR_syscalls];
 extern const system_call_func sys_call_table_deprecated[NR_syscalls];
 
+#ifndef	CONFIG_CPU_HAS_FILL_INSTRUCTION
+#define	native_restore_some_values_after_fill(__regs, __from, __return_to_user) \
+do { \
+	__regs = current_thread_info()->pt_regs; \
+	if (!__builtin_constant_p(from)) \
+		__from = current->thread.fill.from; \
+	__return_to_user = current->thread.fill.return_to_user; \
+} while (false)
+#else	/* CONFIG_CPU_HAS_FILL_INSTRUCTION */
+#define	native_restore_some_values_after_fill(__regs, __from, __return_to_user)
+#endif	/* !CONFIG_CPU_HAS_FILL_INSTRUCTION */
+
 #if !defined(CONFIG_PARAVIRT_GUEST) && !defined(CONFIG_KVM_GUEST_KERNEL)
 /* it is native kernel without any virtualization */
 /* or it is host kernel with virtualization support */
@@ -204,6 +216,10 @@ kvm_mmio_page_fault(struct pt_regs *regs, trap_cellar_t *tcellar)
 {
 	return 0;
 }
+
+#define	restore_some_values_after_fill(__regs, __from, __return_to_user) \
+		native_restore_some_values_after_fill(__regs, __from, \
+						      __return_to_user)
 
 #ifndef	CONFIG_VIRTUALIZATION
 /* it is native kernel without any virtualization */

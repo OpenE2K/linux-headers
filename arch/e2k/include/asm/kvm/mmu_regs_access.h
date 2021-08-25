@@ -245,15 +245,13 @@ static inline mmu_reg_t KVM_READ_DTLB_REG(tlb_addr_t tlb_addr)
 static inline void
 KVM_FLUSH_TLB_ENTRY(flush_op_t flush_op, flush_addr_t flush_addr)
 {
-	if (IS_HV_GM()) {
-		/* FIXME: guest should fully control own PTs including */
-		/* all hardware MMU registers, but it is not so now, */
-		/* for example PT roots and context registers are controled */
-		/* by hypervisor as for paravirtualized kernels */
-		native_flush_TLB_all();
-	} else if (IS_ENABLED(CONFIG_KVM_PARAVIRT_TLB_FLUSH)) {
-		HYPERVISOR_flush_tlb_range(flush_addr_get_va(flush_addr),
-				flush_addr_get_va(flush_addr));
+	if (unlikely(flush_addr_get_pid(flush_addr) == E2K_KERNEL_CONTEXT)) {
+		pr_warn("%s(): CPU #%d try to flush %s addr 0x%lx pid 0x%03lx\n",
+			__func__, smp_processor_id(),
+			(flush_op_get_type(flush_op) == flush_op_tlb_page_sys) ?
+				"TLB page" : "???",
+			flush_addr_get_va(flush_addr),
+			flush_addr_get_pid(flush_addr));
 	}
 }
 
@@ -351,11 +349,8 @@ KVM_FLUSH_CACHE_L12(flush_op_t flush_op)
 static inline void
 KVM_FLUSH_TLB_ALL(flush_op_t flush_op)
 {
-	if (IS_HV_GM()) {
-		native_flush_TLB_all();
-	} else if (IS_ENABLED(CONFIG_KVM_PARAVIRT_TLB_FLUSH)) {
-		HYPERVISOR_flush_tlb_range(0, E2K_VA_SIZE);
-	}
+	pr_warn_once("%s(): try to flush all TLB : op 0x%lx\n",
+		__func__, flush_op);
 }
 
 /*

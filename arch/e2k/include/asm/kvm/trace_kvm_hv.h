@@ -88,10 +88,9 @@
 TRACE_EVENT(
 	intc,
 
-	TP_PROTO(const struct kvm_intc_cpu_context *intc_ctxt,
-		u64 guest_ip, u64 cpu),
+	TP_PROTO(const struct kvm_intc_cpu_context *intc_ctxt),
 
-	TP_ARGS(intc_ctxt, guest_ip, cpu),
+	TP_ARGS(intc_ctxt),
 
 	TP_STRUCT__entry(
 		__field(	int,	cu_num	)
@@ -99,8 +98,6 @@ TRACE_EVENT(
 		__field(	u64,	cu_hdr_lo )
 		__array(	u64,	cu,	INTC_INFO_CU_ENTRY_MAX )
 		__array(	u64,	mu,	INTC_INFO_MU_MAX )
-		__field(	u64,	guest_ip )
-		__field(	u64,	cpu )
 	),
 
 	TP_fast_assign(
@@ -139,12 +136,9 @@ TRACE_EVENT(
 					AW(intc_ctxt->mu[i].mask);
 			}
 		}
-
-		__entry->guest_ip = guest_ip;
-		__entry->cpu = cpu;
 	),
 
-	TP_printk("CPU#%llu, guest IP 0x%llx, cu_num %d, mu_num %d\n"
+	TP_printk("cu_num %d, mu_num %d\n"
 		"CU header: %s (0x%llx)\n"
 		"CU entry0: %s (0x%llx 0x%llx)\n"
 		"CU entry1: %s (0x%llx 0x%llx)\n"
@@ -160,7 +154,6 @@ TRACE_EVENT(
 		"MU entry9: %s (0x%llx), 0x%llx, 0x%llx, 0x%llx, 0x%llx, 0x%llx, 0x%llx\n"
 		"MU entry10: %s (0x%llx), 0x%llx, 0x%llx, 0x%llx, 0x%llx, 0x%llx, 0x%llx\n"
 		,
-		__entry->cpu, __entry->guest_ip,
 		__entry->cu_num, __entry->mu_num,
 		(__entry->cu_num >= 0) ?
 		       E2K_TRACE_PRINT_CU_HDR_LO(__entry->cu_hdr_lo) : "(none)",
@@ -183,14 +176,12 @@ TRACE_EVENT(
 TRACE_EVENT(
 	single_mu_intc,
 
-	TP_PROTO(const intc_info_mu_t *mu, u64 guest_ip, u64 cpu),
+	TP_PROTO(const intc_info_mu_t *mu),
 
-	TP_ARGS(mu, guest_ip, cpu),
+	TP_ARGS(mu),
 
 	TP_STRUCT__entry(
 		__array(	u64,	mu,	INTC_INFO_MU_ITEM_SIZE )
-		__field(	u64,	guest_ip )
-		__field(	u64,	cpu )
 	),
 
 	TP_fast_assign(
@@ -201,27 +192,21 @@ TRACE_EVENT(
 		__entry->mu[4] = AW(mu[0].condition);
 		__entry->mu[5] = mu[0].data_ext;
 		__entry->mu[6] = AW(mu[0].mask);
-		__entry->guest_ip = guest_ip;
-		__entry->cpu = cpu;
 	),
 
-	TP_printk("CPU#%llu, guest IP: 0x%llx\n"
-		"MU entry0: %s (0x%llx), 0x%llx, 0x%llx, 0x%llx, 0x%llx, 0x%llx, 0x%llx\n",
-		__entry->cpu, __entry->guest_ip,
+	TP_printk("MU entry0: %s (0x%llx), 0x%llx, 0x%llx, 0x%llx, 0x%llx, 0x%llx, 0x%llx\n",
 		E2K_PRINT_INTC_MU_ENTRY(__entry, 1, 0))
 );
 
 TRACE_EVENT(
 	double_mu_intc,
 
-	TP_PROTO(const intc_info_mu_t *mu, u64 guest_ip, u64 cpu),
+	TP_PROTO(const intc_info_mu_t *mu),
 
-	TP_ARGS(mu, guest_ip, cpu),
+	TP_ARGS(mu),
 
 	TP_STRUCT__entry(
 		__array(	u64,	mu,	2 * INTC_INFO_MU_ITEM_SIZE )
-		__field(	u64,	guest_ip )
-		__field(	u64,	cpu )
 	),
 
 	TP_fast_assign(
@@ -242,14 +227,10 @@ TRACE_EVENT(
 			__entry->mu[7 * i + 6] =
 				AW(mu[i].mask);
 		}
-		__entry->guest_ip = guest_ip;
-		__entry->cpu = cpu;
 	),
 
-	TP_printk("CPU#%llu, guest IP: 0x%llx\n"
-		"MU entry0: %s (0x%llx), 0x%llx, 0x%llx, 0x%llx, 0x%llx, 0x%llx, 0x%llx\n"
+	TP_printk("MU entry0: %s (0x%llx), 0x%llx, 0x%llx, 0x%llx, 0x%llx, 0x%llx, 0x%llx\n"
 		"MU entry1: %s (0x%llx), 0x%llx, 0x%llx, 0x%llx, 0x%llx, 0x%llx, 0x%llx\n",
-		__entry->cpu, __entry->guest_ip,
 		E2K_PRINT_INTC_MU_ENTRY(__entry, 2, 0),
 		E2K_PRINT_INTC_MU_ENTRY(__entry, 2, 1))
 );
@@ -257,25 +238,19 @@ TRACE_EVENT(
 TRACE_EVENT(
 	single_cu_intc,
 
-	TP_PROTO(const intc_info_cu_hdr_t cu_hdr, u64 guest_ip, u64 cpu),
+	TP_PROTO(const intc_info_cu_hdr_t cu_hdr),
 
-	TP_ARGS(cu_hdr, guest_ip, cpu),
+	TP_ARGS(cu_hdr),
 
 	TP_STRUCT__entry(
 		__field(	u64,	cu_hdr_lo )
-		__field(	u64,	guest_ip )
-		__field(	u64,	cpu )
 	),
 
 	TP_fast_assign(
 		__entry->cu_hdr_lo = AW(cu_hdr.lo);
-		__entry->guest_ip = guest_ip;
-		__entry->cpu = cpu;
 	),
 
-	TP_printk("CPU#%llu, guest IP: 0x%llx\n"
-		"CU header: %s (0x%llx)\n",
-		__entry->cpu, __entry->guest_ip,
+	TP_printk("CU header: %s (0x%llx)\n",
 		E2K_TRACE_PRINT_CU_HDR_LO(__entry->cu_hdr_lo),
 		__entry->cu_hdr_lo)
 
@@ -299,6 +274,60 @@ TRACE_EVENT(
 	TP_printk("Intercept exit %s(%d)\n",
 		(__entry->ret) ? "to QEMU " : "",
 		__entry->ret)
+);
+
+TRACE_EVENT(
+	intc_stacks,
+
+	TP_PROTO(const kvm_sw_cpu_context_t *sw_ctxt, const kvm_hw_cpu_context_t *hw_ctxt,
+		 const e2k_mem_crs_t *crs),
+
+	TP_ARGS(sw_ctxt, hw_ctxt, crs),
+
+	TP_STRUCT__entry(
+		/* Stacks */
+		__field(	u64,	sbr	)
+		__field(	u64,	usd_lo	)
+		__field(	u64,	usd_hi	)
+		__field(	u64,	psp_lo	)
+		__field(	u64,	psp_hi	)
+		__field(	u64,	pcsp_lo	)
+		__field(	u64,	pcsp_hi	)
+		__field(	u64,	pshtp	)
+		__field(	unsigned int,	pcshtp	)
+		/* CRs */
+		__field(	u64,	cr0_lo	)
+		__field(	u64,	cr0_hi	)
+		__field(	u64,	cr1_lo	)
+		__field(	u64,	cr1_hi	)
+	),
+
+	TP_fast_assign(
+		__entry->sbr = AW(sw_ctxt->sbr);
+		__entry->usd_lo = AW(sw_ctxt->usd_lo);
+		__entry->usd_hi = AW(sw_ctxt->usd_hi);
+		__entry->psp_lo = AW(hw_ctxt->sh_psp_lo);
+		__entry->psp_hi = AW(hw_ctxt->sh_psp_hi);
+		__entry->pcsp_lo = AW(hw_ctxt->sh_pcsp_lo);
+		__entry->pcsp_hi = AW(hw_ctxt->sh_pcsp_hi);
+		__entry->pshtp = AW(hw_ctxt->sh_pshtp);
+		__entry->pcshtp = hw_ctxt->sh_pcshtp;
+		__entry->cr0_lo = AW(crs->cr0_lo);
+		__entry->cr0_hi = AW(crs->cr0_hi);
+		__entry->cr1_lo = AW(crs->cr1_lo);
+		__entry->cr1_hi = AW(crs->cr1_hi);
+	),
+
+	TP_printk("sbr 0x%llx, usd_lo 0x%llx, usd_hi 0x%llx\n"
+		"sh_psp_lo 0x%llx, sh_psp_hi 0x%llx, sh_pcsp_lo 0x%llx, sh_pcsp_hi 0x%llx\n"
+		"sh_pshtp 0x%llx, sh_pcshtp 0x%x\n"
+		"cr0_lo 0x%llx, cr0_hi 0x%llx, cr1_lo 0x%llx, cr1_hi 0x%llx\n"
+		,
+		__entry->sbr, __entry->usd_lo, __entry->usd_hi,
+		__entry->psp_lo, __entry->psp_hi, __entry->pcsp_lo, __entry->pcsp_hi,
+		__entry->pshtp, __entry->pcshtp,
+		__entry->cr0_lo, __entry->cr0_hi, __entry->cr1_lo, __entry->cr1_hi)
+
 );
 
 TRACE_EVENT(

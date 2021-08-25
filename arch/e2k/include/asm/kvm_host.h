@@ -361,6 +361,9 @@ typedef struct kvm_mmu_page {
 
 	pgprot_t *spt;
 	gva_t gva;	/* the shadow PT map guest virtual addresses from */
+	/* hold the gpa of guest huge page table entry */
+	/* for direct shadow page table level */
+	gpa_t huge_gpt_gpa;
 	/* hold the gfn of each spte inside spt */
 	gfn_t *gfns;
 	bool unsync;
@@ -390,8 +393,8 @@ typedef struct kvm_mmu_page {
 	atomic_t write_flooding_count;
 #ifdef	CONFIG_GUEST_MM_SPT_LIST
 	struct list_head gmm_entry;	/* entry at the gmm list of SPs */
-	gmm_struct_t *gmm;		/* the gmm in whose list the entry */
 #endif	/* CONFIG_GUEST_MM_SPT_LIST */
+	gmm_struct_t *gmm;		/* the gmm in whose list the entry */
 } kvm_mmu_page_t;
 
 /* page fault handling results */
@@ -539,10 +542,12 @@ typedef struct kvm_mmu {
 	void (*update_pte)(struct kvm_vcpu *vcpu, struct kvm_mmu_page *sp,
 			   pgprot_t *spte, const void *pte);
 	void (*sync_gva)(struct kvm_vcpu *vcpu, gva_t gva);
-	void (*sync_gva_range)(struct kvm_vcpu *vcpu, gva_t gva_start,
-					gva_t gva_end, bool flush_tlb);
+	long (*sync_gva_range)(struct kvm_vcpu *vcpu, gmm_struct_t *gmm,
+				gva_t gva_start, gva_t gva_end);
 	int (*sync_page)(struct kvm_vcpu *vcpu, kvm_mmu_page_t *sp);
 } kvm_mmu_t;
+
+extern void kvm_mmu_free_page(struct kvm *kvm, struct kvm_mmu_page *sp);
 
 typedef struct intc_mu_state {
 	unsigned long notifier_seq;	/* 'mmu_notifier_seq' state before */
@@ -668,6 +673,8 @@ typedef struct kvm_sw_cpu_context {
 
 	e2k_mem_crs_t	crs;	/* only for PV guest */
 
+	long ret_value;		/* return value from hypercall to guest */
+
 	/*
 	 * TODO here goes stuff that can be not switched
 	 * on hypercalls if we do not support calling QEMU from them
@@ -692,8 +699,6 @@ typedef struct kvm_sw_cpu_context {
 	global_regs_t host_gregs;
 	kernel_gregs_t vcpu_k_gregs;
 	kernel_gregs_t host_k_gregs;
-	host_gregs_t vcpu_h_gregs;
-	host_gregs_t host_h_gregs;
 #endif	/* CONFIG_GREGS_CONTEXT */
 
 	e2k_cutd_t cutd;
@@ -704,6 +709,7 @@ typedef struct kvm_sw_cpu_context {
 	mmu_reg_t	tc_hpa;		/* host physical base of VCPU */
 					/* trap cellar */
 	mmu_reg_t	trap_count;
+	bool		no_switch_pt;	/* do not switch PT registers */
 
 	e2k_dibcr_t	dibcr;
 	e2k_ddbcr_t	ddbcr;
@@ -993,9 +999,10 @@ struct kvm_vcpu_arch {
 	struct kvm_cepic *epic;
 
 	/* Hardware guest CEPIC support */
-	raw_spinlock_t epic_dam_lock;	/* lock to update dam_active */
-	bool epic_dam_active;
+	raw_spinlock_t epic_dat_lock;	/* lock to update dam_active */
+	bool epic_dat_active;
 	struct hrtimer cepic_idle;
+	ktime_t cepic_idle_start_time;
 
 	int mp_state;
 	int sipi_vector;
@@ -1009,13 +1016,12 @@ struct kvm_vcpu_arch {
 					/* spin lock/unlock */
 	bool unhalted;			/* VCPU was woken up by pv_kick */
 	bool halted;			/* VCPU is halted */
+	bool reboot;			/* VCPU is rebooted */
 	bool on_idle;			/* VCPU is on idle waiting for some */
 					/* events for guest */
 	bool on_spinlock;		/* VCPU is on slow spinlock waiting */
 	bool on_csd_lock;		/* VCPU is waiting for csd unlocking */
 					/* (IPI completion) */
-	bool should_stop;		/* guest VCPU thread should be */
-					/* stopped and completed */
 	bool virq_wish;			/* trap 'last wish' is injection to */
 					/* pass pending VIRQs to guest */
 	bool virq_injected;		/* interrupt is injected to handle */
@@ -1047,17 +1053,6 @@ struct kvm_vcpu_arch {
 	int64_t ioport_data_size;	/* max size of IO port data area */
 	uint32_t notifier_io;		/* IO request notifier */
 
-	bool in_exit_req;			/* VCPU is waiting for exit */
-						/* request completion */
-						/* exit request in progress */
-	struct completion exit_req_done;	/* exit request is completed */
-
-	struct list_head exit_reqs_list;	/* exit requests list head */
-						/* used only on main VCPU */
-	struct list_head exit_req;		/* the VCPU exit request */
-	raw_spinlock_t exit_reqs_lock;		/* to lock list of exit */
-						/* requests */
-
 	struct work_struct dump_work;		/* to schedule work to dump */
 						/* guest VCPU state */
 
@@ -1088,7 +1083,6 @@ struct kvm_vcpu_arch {
 	int hard_cpu_id;
 };
 
-#ifdef	CONFIG_KVM_HV_MMU
 typedef struct kvm_lpage_info {
 	int disallow_lpage;
 } kvm_lpage_info_t;
@@ -1096,30 +1090,16 @@ typedef struct kvm_lpage_info {
 typedef struct kvm_arch_memory_slot {
 	kvm_rmap_head_t		*rmap[KVM_NR_PAGE_SIZES];
 	kvm_lpage_info_t	*lpage_info[KVM_NR_PAGE_SIZES - 1];
+	unsigned long		page_size;
 	kvm_mem_guest_t		guest_areas;
 	unsigned short		*gfn_track[KVM_PAGE_TRACK_MAX];
 } kvm_arch_memory_slot_t;
-#else	/* ! CONFIG_KVM_HV_MMU */
-struct kvm_lpage_info {
-	int write_count;
-};
-
-struct kvm_arch_memory_slot {
-	unsigned long *rmap;
-	struct kvm_lpage_info *lpage_info[KVM_NR_PAGE_SIZES - 1];
-	kvm_mem_guest_t guest_areas;
-};
-
-extern struct file_operations kvm_vm_fops;
-#endif	/* CONFIG_KVM_HV_MMU */
 
 /*
  * e2k-arch vcpu->requests bit members
  */
 #define KVM_REQ_TRIPLE_FAULT		10	/* FIXME: not implemented */
 #define KVM_REQ_MMU_SYNC		11	/* FIXME: not implemented */
-#define KVM_REQ_PENDING_IRQS		15	/* there are unhandled IRQs */
-						/* injected on VCPU */
 #define KVM_REQ_PENDING_VIRQS		16	/* there are unhandled VIRQs */
 						/* to inject on VCPU */
 #define	KVM_REG_SHOW_STATE		17	/* bit should be cleared */
@@ -1138,7 +1118,7 @@ extern struct file_operations kvm_vm_fops;
 #define	kvm_clear_pending_virqs(vcpu)	\
 		clear_bit(KVM_REQ_PENDING_VIRQS, (void *)&vcpu->requests)
 #define	kvm_test_pending_virqs(vcpu)	\
-		test_bit(KVM_REQ_PENDING_VIRQS, (void *)&vcpu->requests)
+		test_bit(KVM_REQ_PENDING_VIRQS, (const void *)&vcpu->requests)
 #define kvm_set_virqs_injected(vcpu)	\
 		set_bit(KVM_REQ_VIRQS_INJECTED, (void *)&vcpu->requests)
 #define	kvm_test_and_clear_virqs_injected(vcpu)	\
@@ -1177,6 +1157,8 @@ struct irq_remap_table {
 	struct pci_dev *vfio_dev;
 };
 
+#define KVM_ARCH_WANT_MMU_NOTIFIER
+
 struct kvm_arch {
 	unsigned long vm_type;	/* virtual machine type */
 	unsigned long flags;
@@ -1193,6 +1175,8 @@ struct kvm_arch {
 	bool tdp_enable;	/* two dimensional paging is supported */
 				/* by hardware MMU and hypervisor */
 	bool shadow_pt_set_up;	/* shadow PT was set up, skip setup on other VCPUs */
+	struct mutex spt_sync_lock;
+	atomic_t vcpus_to_reset;	/* atomic counter of VCPUs ready to reset */
 	kvm_mem_alias_t aliases[KVM_ALIAS_SLOTS];
 	kvm_kernel_shadow_t shadows[KVM_SHADOW_SLOTS];
 	kvm_nidmap_t gpid_nidmap[GPIDMAP_ENTRIES];
@@ -1297,6 +1281,10 @@ struct kvm_arch {
 	/* sign of reboot VM, true - reboot */
 	bool reboot;
 
+#ifdef	KVM_ARCH_WANT_MMU_NOTIFIER
+	struct swait_queue_head mmu_wq;
+#endif	/* KVM_ARCH_WANT_MMU_NOTIFIER */
+
 	/* lock to update num_sclkr_run and common sh_sclkm3
 	 * for all vcpu-s of the guest */
 	raw_spinlock_t sh_sclkr_lock;
@@ -1316,6 +1304,13 @@ struct kvm_arch {
 	bool legacy_vga_passthrough;
 };
 
+static inline bool kvm_has_passthrough_device(const struct kvm_arch *kvm)
+{
+	if (!kvm->irt)
+		return false;
+	return kvm->irt->vfio_dev != NULL;
+}
+
 #ifdef CONFIG_KVM_ASYNC_PF
 
 /* Async page fault event descriptor */
@@ -1334,6 +1329,8 @@ struct kvm_arch_async_pf {
 					/* and has shadow image address */
 #define	KVMF_VCPU_STARTED	1	/* VCPUs (one or more) is started */
 					/* VM real active */
+#define	KVMF_ARCH_API_TAKEN	4	/* ioctl() to get KVM arch api version */
+					/* was received (to break old versions) */
 #define	KVMF_IN_SHOW_STATE	8	/* show state of KVM (print all */
 					/* stacks) is in progress */
 #define	KVMF_NATIVE_KERNEL	32	/* guest is running native */
@@ -1343,6 +1340,7 @@ struct kvm_arch_async_pf {
 #define	KVMF_LINTEL		40	/* guest is running LIntel */
 #define	KVMF_PARAVIRT_GUEST_MASK	(1UL << KVMF_PARAVIRT_GUEST)
 #define	KVMF_VCPU_STARTED_MASK		(1UL << KVMF_VCPU_STARTED)
+#define	KVMF_ARCH_API_TAKEN_MASK	(1UL << KVMF_ARCH_API_TAKEN)
 #define	KVMF_IN_SHOW_STATE_MASK		(1UL << KVMF_IN_SHOW_STATE)
 #define	KVMF_NATIVE_KERNEL_MASK		(1UL << KVMF_NATIVE_KERNEL)
 #define	KVMF_PARAVIRT_KERNEL_MASK	(1UL << KVMF_PARAVIRT_KERNEL)
@@ -1404,7 +1402,11 @@ static inline void kvm_arch_vcpu_block_finish(struct kvm_vcpu *vcpu)
 #define	SEP_VIRT_ROOT_PT_FLAG	(1U << SEP_VIRT_ROOT_PT_BIT)
 #define	DONT_SYNC_ROOT_PT_FLAG	(1U << DONT_SYNC_ROOT_PT_BIT)
 
-#define KVM_ARCH_WANT_MMU_NOTIFIER
+typedef enum mmu_retry {
+	NO_MMU_RETRY = 0,
+	WAIT_FOR_MMU_RETRY,
+	DO_MMU_RETRY,
+} mmu_retry_t;
 
 #ifdef	KVM_ARCH_WANT_MMU_NOTIFIER
 int kvm_unmap_hva_range(struct kvm *kvm, unsigned long start, unsigned long end, unsigned flags);
@@ -1434,67 +1436,33 @@ extern void kvm_arch_async_page_present(struct kvm_vcpu *vcpu,
 			!defined(CONFIG_KVM_GUEST_KERNEL)
 /* it is hypervisor or host with virtualization support */
 extern void kvm_hv_epic_load(struct kvm_vcpu *vcpu);
-extern void kvm_epic_invalidate_dat(struct kvm_vcpu *vcpu);
+extern void kvm_epic_invalidate_dat(struct kvm_vcpu_arch *vcpu);
 extern void kvm_epic_enable_int(void);
 extern void kvm_epic_timer_start(void);
-extern void kvm_epic_timer_stop(void);
+extern void kvm_epic_timer_stop(bool skip_check);
 extern void kvm_deliver_cepic_epic_interrupt(void);
-extern void kvm_epic_check_int_status(struct kvm_vcpu_arch *vcpu);
+extern void kvm_epic_vcpu_blocking(struct kvm_vcpu_arch *vcpu);
+extern void kvm_epic_vcpu_unblocking(struct kvm_vcpu_arch *vcpu);
 extern void kvm_init_cepic_idle_timer(struct kvm_vcpu *vcpu);
+
+#define	VCPU_IDLE_TIMEOUT	1
 extern void kvm_epic_start_idle_timer(struct kvm_vcpu *vcpu);
 extern void kvm_epic_stop_idle_timer(struct kvm_vcpu *vcpu);
+
 #else	/* ! CONFIG_KVM_HW_VIRTUALIZATION || CONFIG_KVM_GUEST_KERNEL */
 /* it is host without virtualization support */
 /* or native paravirtualized guest */
-static inline void kvm_hv_epic_load(struct kvm_vcpu *vcpu)
-{
-	/* nothing to do */
-}
-
-static inline void kvm_epic_invalidate_dat(struct kvm_vcpu *vcpu)
-{
-	/* nothing to do */
-}
-
-static inline void kvm_epic_enable_int(void)
-{
-	/* nothing to do */
-}
-
-static inline void kvm_epic_timer_start(void)
-{
-	/* nothing to do */
-}
-
-static inline void kvm_epic_timer_stop(void)
-{
-	/* nothing to do */
-}
-
-static inline void kvm_deliver_cepic_epic_interrupt(void)
-{
-	/* nothing to do */
-}
-
-static inline void kvm_epic_check_int_status(struct kvm_vcpu_arch *vcpu)
-{
-	/* nothing to do */
-}
-
-static inline void kvm_init_cepic_idle_timer(struct kvm_vcpu *vcpu)
-{
-	/* nothing to do */
-}
-
-static inline void kvm_epic_start_idle_timer(struct kvm_vcpu *vcpu)
-{
-	/* nothing to do */
-}
-
-static inline void kvm_epic_stop_idle_timer(struct kvm_vcpu *vcpu)
-{
-	/* nothing to do */
-}
+static inline void kvm_hv_epic_load(struct kvm_vcpu *vcpu) { }
+static inline void kvm_epic_invalidate_dat(struct kvm_vcpu_arch *vcpu) { }
+static inline void kvm_epic_enable_int(void) { }
+static inline void kvm_epic_vcpu_blocking(struct kvm_vcpu_arch *vcpu) { }
+static inline void kvm_epic_vcpu_unblocking(struct kvm_vcpu_arch *vcpu) { }
+static inline void kvm_epic_timer_start(void) { }
+static inline void kvm_epic_timer_stop(bool skip_check) { }
+static inline void kvm_deliver_cepic_epic_interrupt(void) { }
+static inline void kvm_init_cepic_idle_timer(struct kvm_vcpu *vcpu) { }
+static inline void kvm_epic_start_idle_timer(struct kvm_vcpu *vcpu) { }
+static inline void kvm_epic_stop_idle_timer(struct kvm_vcpu *vcpu) { }
 #endif /* CONFIG_KVM_HW_VIRTUALIZATION && !CONFIG_KVM_GUEST_KERNEL */
 
 extern struct work_struct kvm_dump_stacks;

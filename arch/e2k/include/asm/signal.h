@@ -125,7 +125,12 @@ do {					\
 } while (0)
 
 struct signal_stack;
+extern unsigned long allocate_signal_stack(unsigned long size);
 extern void free_signal_stack(struct signal_stack *signal_stack);
+extern struct signal_stack_context __user *
+			get_the_signal_stack(struct signal_stack *signal_stack);
+extern struct signal_stack_context __user *
+			pop_the_signal_stack(struct signal_stack *signal_stack);
 extern struct signal_stack_context __user *pop_signal_stack(void);
 extern struct signal_stack_context __user *get_signal_stack(void);
 extern int setup_signal_stack(struct pt_regs *regs, bool is_signal);
@@ -151,6 +156,9 @@ extern int prepare_sighandler_frame(struct e2k_stacks *stacks,
 				u64 pframe[32], e2k_mem_crs_t *crs);
 
 extern int native_signal_setup(struct pt_regs *regs);
+
+extern int native_longjmp_copy_user_to_kernel_hw_stacks(struct pt_regs *regs,
+							struct pt_regs *new_regs);
 
 static inline int native_complete_long_jump(struct pt_regs *regs)
 {
@@ -197,6 +205,12 @@ do { \
 static inline int signal_setup(struct pt_regs *regs)
 {
 	return native_signal_setup(regs);
+}
+
+static inline int longjmp_copy_user_to_kernel_hw_stacks(struct pt_regs *regs,
+							struct pt_regs *new_regs)
+{
+	return native_longjmp_copy_user_to_kernel_hw_stacks(regs, new_regs);
 }
 
 static inline int complete_long_jump(struct pt_regs *regs)

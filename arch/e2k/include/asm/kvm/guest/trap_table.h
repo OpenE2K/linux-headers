@@ -54,6 +54,8 @@ static inline void kvm_clear_fork_child_pt_regs(struct pt_regs *childregs)
 	kvm_init_pt_regs_copyed_fields(childregs);
 }
 
+#define	kvm_restore_some_values_after_fill(__regs, __from, __return_to_user)
+
 #define	KVM_FILL_HARDWARE_STACKS()	/* host itself will fill */
 
 extern void kvm_correct_trap_psp_pcsp(struct pt_regs *regs,
@@ -170,6 +172,9 @@ do { \
 		KVM_FILL_HARDWARE_STACKS(); \
 	} \
 } while (false)
+
+#define	restore_some_values_after_fill(__regs, __from, __return_to_user) \
+		kvm_restore_some_values_after_fill(__regs, __from, __return_to_user)
 
 static inline void
 exit_handle_syscall(e2k_addr_t sbr, e2k_usd_hi_t usd_hi,

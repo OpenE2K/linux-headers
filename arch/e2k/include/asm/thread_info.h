@@ -183,13 +183,6 @@ typedef struct thread_info {
 					/* to support spin lock/unlock */
 	struct gthread_info *gti_to_spin; /* guest thread waitin for the */
 					/* spin lock/unlock */
-	int	should_stop;		/* on host: guest kernel thread */
-					/* should be stopped */
-	/* structure to save state of user global registers, which are */
-	/* used to support virtualization and PV OPs by kernel */
-	host_gregs_t h_gregs;		/* state of user global registers */
-					/* used by host to support guest */
-					/* kernel */
 #endif	/* CONFIG_VIRTUALIZATION */
 } __aligned(SMP_CACHE_BYTES) thread_info_t;
 

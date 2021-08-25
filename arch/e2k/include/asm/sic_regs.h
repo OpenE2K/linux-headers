@@ -195,33 +195,20 @@
 #define SIC_MC_BASE		0x400
 #define SIC_MC_SIZE		(machine.sic_mc_size)
 
-#define SIC_mc_ecc		0x440
 #define SIC_mc0_ecc		0x400
 #define SIC_mc1_ecc		(machine.sic_mc1_ecc)
 #define SIC_mc2_ecc		0x480
 #define SIC_mc3_ecc		0x4c0
 
-#define SIC_mc_ch		0x400
-#define SIC_mc_status		0x44c
-
-#define SIC_mc_opmb		0x424
 #define SIC_mc0_opmb		0x414
 #define SIC_mc1_opmb		0x454
 #define SIC_mc2_opmb		0x494
 #define SIC_mc3_opmb		0x4d4
 
-#define SIC_mc_cfg		0x418
 #define SIC_mc0_cfg		0x418
 #define SIC_mc1_cfg		0x458
 #define SIC_mc2_cfg		0x498
 #define SIC_mc3_cfg		0x4d8
-
-/* HMU */
-#define SIC_hmu_mic		0xd00
-#define SIC_hmu0_int		0xd40
-#define SIC_hmu1_int		0xd70
-#define SIC_hmu2_int		0xda0
-#define SIC_hmu3_int		0xdd0
 
 /* IPCC */
 #define SIC_IPCC_LINKS_COUNT	3
@@ -329,6 +316,54 @@ typedef union {
 	};
 	u32 word;
 } sys_mon_1_t;
+
+/* E8C2 Power Control System (PCS) registers */
+
+#define SIC_pcs_ctrl0		0x0cb0
+#define SIC_pcs_ctrl1		0x0cb4
+#define SIC_pcs_ctrl2		0x0cb8
+#define SIC_pcs_ctrl3		0x0cbc
+#define SIC_pcs_ctrl4		0x0cc0
+#define SIC_pcs_ctrl5		0x0cc4
+#define SIC_pcs_ctrl6		0x0cc8
+#define SIC_pcs_ctrl7		0x0ccc
+#define SIC_pcs_ctrl8		0x0cd0
+#define SIC_pcs_ctrl9		0x0cd4
+
+/* PCS_CTRL1 fields: */
+typedef union {
+	struct {
+		u32 pcs_mode	: 4;
+		u32 n_fprogr	: 6;
+		u32 n_fmin	: 6;
+		u32 n_fminmc	: 6;
+		u32 n		: 6;
+		u32		: 4;
+	};
+	u32 word;
+} pcs_ctrl1_t;
+
+/* PCS_CTRL3 fields: */
+typedef union {
+	struct {
+		u32 n_fpin	    : 6;
+		u32		    : 2;
+		u32 bfs_freq	    : 4;
+		u32 pll_bw	    : 3;
+		u32		    : 1;
+		u32 pll_mode	    : 3;
+		u32		    : 1;
+		u32 iol_bitrate	    : 3;
+		u32		    : 1;
+		u32 ipl_bitrate	    : 3;
+		u32		    : 1;
+		u32 l_equaliz	    : 1;
+		u32 l_preemph	    : 1;
+		u32 bfs_adj_dsbl    : 1;
+		u32		    : 1;
+	};
+	u32 word;
+} pcs_ctrl3_t;
 
 /* Cache L3 */
 #define	SIC_l3_ctrl		0x3000

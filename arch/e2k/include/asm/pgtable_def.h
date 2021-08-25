@@ -31,7 +31,7 @@ do { \
 		trace_printk(__VA_ARGS__); \
 } while (0)
 #else
-# define trace_pt_update(...)
+# define trace_pt_update(...) do { } while (0)
 #endif
 
 #ifndef __ASSEMBLY__
@@ -1049,6 +1049,7 @@ static inline int pmd_bad(pmd_t pmd)
 		(is_huge_pmd_level() && _PAGE_TEST_HUGE(pmd_val(pmd)))
 
 #ifdef CONFIG_TRANSPARENT_HUGEPAGE
+#define	PMD_THP_INVALIDATE_FLAGS	(UNI_PAGE_PRESENT | UNI_PAGE_PROTNONE)
 #define has_transparent_hugepage has_transparent_hugepage
 static inline int has_transparent_hugepage(void)
 {
@@ -1056,6 +1057,8 @@ static inline int has_transparent_hugepage(void)
 }
 
 #define pmd_trans_huge(pmd)		user_pmd_huge(pmd)
+#else	/* !CONFIG_TRANSPARENT_HUGEPAGE */
+#define PMD_THP_INVALIDATE_FLAGS	0UL
 #endif /* CONFIG_TRANSPARENT_HUGEPAGE */
 
 /*
@@ -1083,8 +1086,7 @@ static inline int has_transparent_hugepage(void)
 #define pmd_mk_present_valid(pmd) (__pmd(_PAGE_SET(pmd_val(pmd), \
 				   UNI_PAGE_PRESENT | UNI_PAGE_VALID)))
 #define pmd_mknotpresent(pmd)	\
-		(__pmd(_PAGE_CLEAR(pmd_val(pmd), \
-				UNI_PAGE_PRESENT | UNI_PAGE_PROTNONE)))
+		(__pmd(_PAGE_CLEAR(pmd_val(pmd), PMD_THP_INVALIDATE_FLAGS)))
 #define pmd_mknot_present_valid(pmd) (__pmd(_PAGE_CLEAR(pmd_val(pmd), \
 		 UNI_PAGE_PRESENT | UNI_PAGE_PROTNONE | UNI_PAGE_VALID)))
 #define pmd_mknotvalid(pmd)	(__pmd(_PAGE_CLEAR_VALID(pmd_val(pmd))))

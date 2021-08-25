@@ -134,6 +134,15 @@ static inline bool kvm_vcpu_in_hypercall(struct kvm_vcpu *vcpu)
 	return vcpu->arch.sw_ctxt.in_hypercall;
 }
 
+static inline void pv_vcpu_clear_gti(struct kvm_vcpu *vcpu)
+{
+	if (likely(!vcpu->arch.is_hv && vcpu->arch.is_pv)) {
+		vcpu->arch.gti = NULL;
+	} else {
+		KVM_BUG_ON(true);
+	}
+}
+
 static inline gthread_info_t *pv_vcpu_get_gti(struct kvm_vcpu *vcpu)
 {
 	if (likely(!vcpu->arch.is_hv && vcpu->arch.is_pv)) {
@@ -168,6 +177,21 @@ static inline gmm_struct_t *pv_mmu_get_init_gmm(struct kvm *kvm)
 	return kvm->arch.init_gmm;
 }
 
+static inline void pv_mmu_clear_init_gmm(struct kvm *kvm)
+{
+	kvm->arch.init_gmm = NULL;
+}
+
+static inline bool pv_mmu_is_init_gmm(struct kvm *kvm, gmm_struct_t *gmm)
+{
+	if (likely(!kvm->arch.is_hv && kvm->arch.is_pv)) {
+		return gmm == pv_mmu_get_init_gmm(kvm);
+	} else {
+		KVM_BUG_ON(true);
+	}
+	return false;
+}
+
 static inline gmm_struct_t *pv_vcpu_get_init_gmm(struct kvm_vcpu *vcpu)
 {
 	return pv_mmu_get_init_gmm(vcpu->kvm);
@@ -175,12 +199,7 @@ static inline gmm_struct_t *pv_vcpu_get_init_gmm(struct kvm_vcpu *vcpu)
 
 static inline bool pv_vcpu_is_init_gmm(struct kvm_vcpu *vcpu, gmm_struct_t *gmm)
 {
-	if (likely(!vcpu->arch.is_hv && vcpu->arch.is_pv)) {
-		return gmm == pv_vcpu_get_init_gmm(vcpu);
-	} else {
-		KVM_BUG_ON(true);
-	}
-	return false;
+	return pv_mmu_is_init_gmm(vcpu->kvm, gmm);
 }
 
 static inline void pv_vcpu_clear_gmm(struct kvm_vcpu *vcpu)
@@ -242,6 +261,11 @@ pv_vcpu_set_active_gmm(struct kvm_vcpu *vcpu, gmm_struct_t *gmm)
 static inline mm_context_t *pv_vcpu_get_gmm_context(struct kvm_vcpu *vcpu)
 {
 	return &pv_vcpu_get_gmm(vcpu)->context;
+}
+
+static inline cpumask_t *pv_vcpu_get_gmm_cpumask(struct kvm_vcpu *vcpu)
+{
+	return gmm_cpumask(pv_vcpu_get_gmm(vcpu));
 }
 
 #else	/* !CONFIG_VIRTUALIZATION */

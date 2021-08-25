@@ -17,7 +17,8 @@ LD	= $(shell $(CC) -print-prog-name=ld)
 OBJCOPY	= $(shell $(CC) -print-prog-name=objcopy)
 
 KBUILD_CFLAGS += -fkernel -gline -masm-inline $(call cc-option,-fforbid-fp) \
-		 $(call cc-option,-fmax-errors=5) $(call cc-option,-fno-loop-apb)
+		 $(call cc-option,-fmax-errors=5) $(call cc-option,-fno-loop-apb) \
+		 -fno-ident
 
 ifeq ($(PROFILE_GENERATE), 1)
 KBUILD_CFLAGS += -fprofile-generate-kernel
@@ -31,10 +32,10 @@ KBUILD_CFLAGS += $(call cc-option,-finline-functions,) \
                  $(call cc-option,-finline-functions-called-once,)
 
 # Some uninteresting or broken warnings can be disabled with #pragma's only
-KBUILD_CFLAGS += -Wno-array-bounds -Wno-duplicate-type-qualifier \
-		-Wno-builtin-functions-redefined -Wno-reduced-alignment \
-		-Wno-unused-value -Wno-overflow -Wno-signed-one-bit-field \
-		-include $(srctree)/arch/e2k/include/asm/override-lcc-warnings.h
+KBUILD_CFLAGS += -Wno-array-bounds -Wno-builtin-functions-redefined \
+		 -Wno-reduced-alignment -Wno-overflow -Wno-signed-one-bit-field \
+		 -Wno-alignment-reduction-ignored \
+		 -include $(srctree)/arch/e2k/include/asm/override-lcc-warnings.h
 
 LDFLAGS_vmlinux :=
 CHECKFLAGS	+= -D__e2k__

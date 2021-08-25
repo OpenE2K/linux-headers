@@ -61,15 +61,16 @@ extern int constrict_user_data_stack(struct pt_regs *regs, unsigned long incr);
 extern int expand_user_data_stack(struct pt_regs *regs, unsigned long incr);
 extern void do_notify_resume(struct pt_regs *regs);
 
-extern int parse_getsp_operation(struct trap_pt_regs *regs, int *incr);
-
 extern void coredump_in_future(void);
 
-enum {
-	GETSP_OP_IGNORE,
+enum getsp_action {
+	GETSP_OP_FAIL = 1,
+	GETSP_OP_SIGSEGV,
 	GETSP_OP_INCREMENT,
 	GETSP_OP_DECREMENT
 };
+extern enum getsp_action parse_getsp_operation(const struct pt_regs *regs,
+		int *incr, void __user **fault_addr);
 
 static inline unsigned int user_trap_init(void)
 {
@@ -124,8 +125,10 @@ static inline void kernel_trap_mask_init(void)
 {
 	WRITE_OSEM_REG(user_trap_init());
 #ifdef CONFIG_KVM_HOST_MODE
-	machine.rwd(E2K_REG_HCEM, user_hcall_init());
-	machine.rwd(E2K_REG_HCEB, (unsigned long) __hypercalls_begin);
+	if (!paravirt_enabled()) {
+		machine.rwd(E2K_REG_HCEM, user_hcall_init());
+		machine.rwd(E2K_REG_HCEB, (unsigned long) __hypercalls_begin);
+	}
 #endif
 }
 

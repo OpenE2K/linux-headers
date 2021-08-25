@@ -9,6 +9,9 @@
 
 #ifndef __ASSEMBLY__
 
+#define REPLACE_USR_PFAULT(to_pfault_IP) \
+		(current_thread_info()->usr_pfault_jump = to_pfault_IP)
+
 /*
  * optimized copy memory along with tags
  * using privileged LD/ST recovery operations
@@ -38,7 +41,7 @@ kvm_do_fast_tagged_memory_set(void *addr, u64 val, u64 tag,
 							len, strd_opcode);
 	} else {
 		ret = HYPERVISOR_fast_tagged_memory_set(addr, val, tag, len,
-								strd_opcode);
+							strd_opcode);
 	}
 	return ret;
 }
@@ -107,31 +110,39 @@ extern unsigned long boot_kvm_fast_tagged_memory_set(void *addr, u64 val,
 extern unsigned long kvm_extract_tags_32(u16 *dst, const void *src);
 #endif	/* ! DEBUG_GUEST_STRINGS */
 
+extern unsigned long kvm_fast_tagged_memory_copy_user(void *dst, const void *src,
+				size_t len, size_t *copied,
+				unsigned long strd_opcode,
+				unsigned long ldrd_opcode,
+				int prefetch);
+extern unsigned long kvm_fast_tagged_memory_set_user(void *addr, u64 val, u64 tag,
+				size_t len, size_t *cleared, u64 strd_opcode);
+
 static inline int
 kvm_fast_tagged_memory_copy_to_user(void __user *dst, const void *src,
-		size_t len, const struct pt_regs *regs,
+		size_t len, size_t *copied, const struct pt_regs *regs,
 		unsigned long strd_opcode, unsigned long ldrd_opcode,
 		int prefetch)
 {
 	/* guest kernel does not support any nested guests */
-	return kvm_fast_tagged_memory_copy(dst, src, len,
+	return kvm_fast_tagged_memory_copy_user(dst, src, len, copied,
 				strd_opcode, ldrd_opcode, prefetch);
 }
 
 static inline int
 kvm_fast_tagged_memory_copy_from_user(void *dst, const void __user *src,
-		size_t len, const struct pt_regs *regs,
+		size_t len, size_t *copied, const struct pt_regs *regs,
 		unsigned long strd_opcode, unsigned long ldrd_opcode,
 		int prefetch)
 {
 	/* guest kernel does not support any nested guests */
-	return kvm_fast_tagged_memory_copy(dst, src, len,
+	return kvm_fast_tagged_memory_copy_user(dst, src, len, copied,
 				strd_opcode, ldrd_opcode, prefetch);
 }
 
 static inline void kvm_tagged_memcpy_8(void *dst, const void *src, size_t n)
 {
-	E2K_PREFETCH_L2(src);
+	E2K_PREFETCH_L1_SPEC(src);
 
 	__tagged_memcpy_8(dst, src, n);
 }
@@ -161,6 +172,14 @@ fast_tagged_memory_copy(void *dst, const void *src, size_t len,
 						ldrd_opcode, prefetch);
 }
 static inline unsigned long
+fast_tagged_memory_copy_user(void *dst, const void *src, size_t len, size_t *copied,
+		unsigned long strd_opcode, unsigned long ldrd_opcode,
+		int prefetch)
+{
+	return kvm_fast_tagged_memory_copy_user(dst, src, len, copied, strd_opcode,
+						ldrd_opcode, prefetch);
+}
+static inline unsigned long
 boot_fast_tagged_memory_copy(void *dst, const void *src, size_t len,
 		unsigned long strd_opcode, unsigned long ldrd_opcode,
 		int prefetch)
@@ -173,6 +192,13 @@ fast_tagged_memory_set(void *addr, u64 val, u64 tag,
 		size_t len, u64 strd_opcode)
 {
 	return kvm_fast_tagged_memory_set(addr, val, tag, len, strd_opcode);
+}
+static inline unsigned long
+fast_tagged_memory_set_user(void *addr, u64 val, u64 tag,
+		size_t len, size_t *cleared, u64 strd_opcode)
+{
+	return kvm_fast_tagged_memory_set_user(addr, val, tag, len, cleared,
+						strd_opcode);
 }
 static inline void
 boot_fast_tagged_memory_set(void *addr, u64 val, u64 tag,
@@ -189,21 +215,21 @@ extract_tags_32(u16 *dst, const void *src)
 
 static inline int
 fast_tagged_memory_copy_to_user(void __user *dst, const void *src,
-		size_t len, const struct pt_regs *regs,
+		size_t len, size_t *copied, const struct pt_regs *regs,
 		unsigned long strd_opcode, unsigned long ldrd_opcode,
 		int prefetch)
 {
-	return kvm_fast_tagged_memory_copy_to_user(dst, src, len, regs,
+	return kvm_fast_tagged_memory_copy_to_user(dst, src, len, copied, regs,
 				strd_opcode, ldrd_opcode, prefetch);
 }
 
 static inline int
 fast_tagged_memory_copy_from_user(void *dst, const void __user *src,
-		size_t len, const struct pt_regs *regs,
+		size_t len, size_t *copied, const struct pt_regs *regs,
 		unsigned long strd_opcode, unsigned long ldrd_opcode,
 		int prefetch)
 {
-	return kvm_fast_tagged_memory_copy_from_user(dst, src, len, regs,
+	return kvm_fast_tagged_memory_copy_from_user(dst, src, len, copied, regs,
 				strd_opcode, ldrd_opcode, prefetch);
 }
 

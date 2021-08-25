@@ -37,14 +37,9 @@ static inline bool
 kvm_is_guest_kernel_gregs(struct thread_info *ti,
 				unsigned greg_num_d, u64 **greg_copy)
 {
-	if (HOST_KERNEL_GREGS_PAIR_MASK == 0 ||
-			!(HOST_KERNEL_GREGS_PAIR_MASK & (1UL << greg_num_d)))
-		/* register is not used by host and guest */
-		/* to support virtualization */
-		return false;
-
-	*greg_copy = ti->h_gregs.g[greg_num_d - HOST_GREGS_PAIRS_START].xreg;
-	return true;
+	/* no additional register are used by host and guest */
+	/* to support virtualization */
+	return false;
 }
 
 #ifdef	CONFIG_KVM_GUEST_KERNEL

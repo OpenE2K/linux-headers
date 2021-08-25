@@ -216,19 +216,36 @@ static inline void kvm_switch_mmu_tc_regs(struct kvm_sw_cpu_context *sw_ctxt)
 static inline void kvm_switch_mmu_regs(struct kvm_sw_cpu_context *sw_ctxt,
 					bool switch_tc)
 {
-	kvm_switch_mmu_pt_regs(sw_ctxt);
-	if (switch_tc)
+	if (likely(!sw_ctxt->no_switch_pt)) {
+		kvm_switch_mmu_pt_regs(sw_ctxt);
+	}
+	if (switch_tc) {
 		kvm_switch_mmu_tc_regs(sw_ctxt);
+	}
 }
 
 static inline void kvm_switch_to_guest_mmu_pid(struct kvm_vcpu *vcpu)
 {
 	mm_context_t *gmm_context;
-	unsigned long mask;
+	unsigned long mask, flags;
+	int cpu = raw_smp_processor_id();
 
+	if (unlikely(vcpu->arch.sw_ctxt.no_switch_pt)) {
+		copy_user_pgd_to_kernel_root_pt(
+			(pgd_t *)__va(kvm_get_space_type_spt_u_root(vcpu)));
+	}
+	raw_all_irq_save(flags);
 	gmm_context = pv_vcpu_get_gmm_context(vcpu);
-	mask = get_mmu_pid(gmm_context, smp_processor_id());
+#ifdef	CONFIG_SMP
+	/* Stop flush ipis for the guest mm */
+	cpumask_set_cpu(cpu, pv_vcpu_get_gmm_cpumask(vcpu));
+	/* This barrier could be smp_mb__after_atomic() ..., */
+	/* see arch/e2k/iclude/asm/mmu_context.h */
+	smp_mb();
+#endif	/* CONFIG_SMP */
+	mask = get_mmu_pid(gmm_context, cpu);
 	reload_context_mask(mask);
+	raw_all_irq_restore(flags);
 }
 
 static inline unsigned long kvm_get_guest_mmu_pid(struct kvm_vcpu *vcpu)
@@ -239,12 +256,26 @@ static inline unsigned long kvm_get_guest_mmu_pid(struct kvm_vcpu *vcpu)
 	return gmm_context->cpumsk[smp_processor_id()];
 }
 
-static inline void kvm_switch_to_host_mmu_pid(struct mm_struct *mm)
+static inline void kvm_switch_to_host_mmu_pid(struct kvm_vcpu *vcpu,
+							struct mm_struct *mm)
 {
-	unsigned long mask;
+	unsigned long mask, flags;
+	int cpu = raw_smp_processor_id();
 
-	mask = get_mmu_context(mm, smp_processor_id());
+	if (unlikely(vcpu->arch.sw_ctxt.no_switch_pt)) {
+		copy_user_pgd_to_kernel_root_pt(mm->pgd);
+	}
+	raw_all_irq_save(flags);
+#ifdef	CONFIG_SMP
+	/* Start receiving flush ipis for the guest mm */
+	cpumask_clear_cpu(cpu, pv_vcpu_get_gmm_cpumask(vcpu));
+	/* This barrier could be smp_mb__after_atomic() ..., */
+	/* see arch/e2k/iclude/asm/mmu_context.h */
+	smp_mb();
+#endif	/* CONFIG_SMP */
+	mask = get_mmu_context(mm, cpu);
 	reload_context_mask(mask);
+	raw_all_irq_restore(flags);
 }
 
 static inline void kvm_switch_debug_regs(struct kvm_sw_cpu_context *sw_ctxt,
@@ -744,20 +775,6 @@ pv_vcpu_switch_guest_host_context(struct kvm_vcpu *vcpu,
 {
 	pv_vcpu_save_host_context(vcpu, cur_gti);
 	pv_vcpu_restore_host_context(vcpu, next_gti);
-}
-
-static inline void
-pv_vcpu_switch_kernel_pgd_range(struct kvm_vcpu *vcpu, int cpu)
-{
-	hpa_t vcpu_root;
-
-	if (is_sep_virt_spaces(vcpu)) {
-		vcpu_root = kvm_get_space_type_spt_os_root(vcpu);
-	} else {
-		vcpu_root = kvm_get_space_type_spt_u_root(vcpu);
-	}
-
-	copy_kernel_pgd_range(__va(vcpu_root), the_cpu_pg_dir(cpu));
 }
 
 static inline void pv_vcpu_switch_host_context(struct kvm_vcpu *vcpu)

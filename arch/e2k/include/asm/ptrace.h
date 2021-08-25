@@ -505,7 +505,7 @@ static inline void calculate_e2k_dstack_parameters(
 /* virtualization support */
 #include <asm/kvm/ptrace.h>
 
-struct signal_stack_context {
+typedef struct signal_stack_context {
 	struct pt_regs		regs;
 	struct trap_pt_regs	trap;
 	struct k_sigaction	sigact;
@@ -515,7 +515,7 @@ struct signal_stack_context {
 #endif
 	u64			sbbp[SBBP_ENTRIES_NUM];
 	struct pv_vcpu_ctxt	vcpu_ctxt;
-};
+} signal_stack_context_t;
 
 #define __signal_pt_regs_last(ti) \
 ({ \
@@ -820,6 +820,9 @@ extern int syscall_trace_entry(struct pt_regs *regs);
 extern void syscall_trace_leave(struct pt_regs *regs);
 
 #define arch_has_single_step()	(1)
+
+extern long common_ptrace(struct task_struct *child, long request, unsigned long addr,
+		   unsigned long data, bool compat);
 
 #endif /* __ASSEMBLY__ */
 #endif /* _E2K_PTRACE_H */

@@ -93,6 +93,10 @@ static inline bool is_spt_paging(struct kvm_vcpu *vcpu)
 }
 static inline bool is_hv_paging(struct kvm_vcpu *vcpu)
 {
+#ifdef	CONFIG_VIRTUALIZATION
+	if (current_thread_info()->vcpu != vcpu)
+		return is_paging_flag(vcpu);
+#endif
 	if (vcpu->arch.mmu.is_paging == NULL)
 		return is_paging_flag(vcpu);
 

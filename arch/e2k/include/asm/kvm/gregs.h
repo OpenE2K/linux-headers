@@ -131,41 +131,4 @@
 /* not used */
 #endif	/* CONFIG_VIRTUALIZATION */
 
-static inline void
-copy_h_gregs_to_gregs(global_regs_t *dst, const host_gregs_t *src)
-{
-	tagged_memcpy_8(&dst->g[HOST_GREGS_PAIRS_START], src->g,
-			sizeof(src->g));
-}
-
-static inline void
-copy_h_gregs_to_h_gregs(host_gregs_t *dst, const host_gregs_t *src)
-{
-	tagged_memcpy_8(dst->g, src->g, sizeof(src->g));
-}
-
-static inline void
-get_h_gregs_from_gregs(host_gregs_t *dst, const global_regs_t *src)
-{
-	tagged_memcpy_8(dst->g, &src->g[HOST_GREGS_PAIRS_START],
-			sizeof(dst->g));
-}
-
-static inline void
-copy_h_gregs_to_l_gregs(local_gregs_t *dst, const host_gregs_t *src)
-{
-	BUG_ON(HOST_GREGS_PAIRS_START < LOCAL_GREGS_START);
-	tagged_memcpy_8(&dst->g[HOST_GREGS_PAIRS_START - LOCAL_GREGS_START],
-			src->g, sizeof(src->g));
-}
-
-static inline void
-get_h_gregs_from_l_regs(host_gregs_t *dst, const local_gregs_t *src)
-{
-	BUG_ON(HOST_GREGS_PAIRS_START < LOCAL_GREGS_START);
-	tagged_memcpy_8(dst->g,
-			&src->g[HOST_GREGS_PAIRS_START - LOCAL_GREGS_START],
-			sizeof(dst->g));
-}
-
 #endif	/* _E2K_ASM_KVM_GREGS_H */

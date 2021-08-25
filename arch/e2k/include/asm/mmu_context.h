@@ -159,29 +159,11 @@ reload_mmu_context(struct mm_struct *mm)
 	reload_context_mask(ctx);
 	raw_all_irq_restore(flags);
 }
-static inline void
-invalidate_mmu_context(struct mm_struct *mm)
-{
-	int cpu = raw_smp_processor_id();
-#ifdef CONFIG_SMP
-	/*
-	 * Remove this cpu from mm_cpumask. This might be
-	 * needed, for example, after sys_io_setup() if the
-	 * kernel thread which was using this mm received
-	 * flush ipi (unuse_mm() does not clear mm_cpumask).
-	 * And maybe there are other such places where
-	 * a kernel thread uses user mm.
-	 */
-	cpumask_clear_cpu(cpu, mm_cpumask(mm));
-#endif
-	mm->context.cpumsk[cpu] = 0;
-}
 
 extern	inline void
 enter_lazy_tlb (struct mm_struct *mm, struct task_struct *tsk)
 {
 }
-
 
 extern int __init_new_context(struct task_struct *p, struct mm_struct *mm,
 		mm_context_t *context);

@@ -67,7 +67,9 @@ typedef	struct kvm_cpu_regs {
 	e2k_wd_t	CPU_WD;		/* Window Descriptor Register */
 	e2k_bgr_t	CPU_BGR;	/* Base Global Register */
 	e2k_lsr_t	CPU_LSR;	/* Loop Status Register */
+	e2k_lsr_t	CPU_LSR1;	/* */
 	e2k_ilcr_t	CPU_ILCR;	/* Initial Loop Counters Register */
+	e2k_ilcr_t	CPU_ILCR1;	/* */
 	e2k_rpr_lo_t	CPU_RPR_lo;	/* Recovery point register */
 	e2k_rpr_hi_t	CPU_RPR_hi;
 	e2k_cutd_t	CPU_OSCUTD;	/* CUTD Register of OS */
@@ -235,7 +237,6 @@ typedef struct kvm_host_info {
 	unsigned long	features;	/* KVM and hypervisor features */
 					/* see details <asm/kvm/hypervisor.h> */
 	kvm_time_t	time;		/* current host time state */
-	int		clock_rate;	/* clock tick frequency */
 } kvm_host_info_t;
 
 /*

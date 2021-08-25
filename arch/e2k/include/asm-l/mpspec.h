@@ -378,6 +378,7 @@ extern int mp_find_iolink_io_apicid(int node, int link);
 extern int mp_fix_io_apicid(unsigned int src_apicid, unsigned int new_apicid);
 void mp_pci_add_resources(struct list_head *resources,
 			   struct iohub_sysdata *sd);
+extern int mp_iohubs_num;
 #else
 static inline int mp_fix_io_apicid(unsigned int src_apicid,
 				   unsigned int new_apicid)

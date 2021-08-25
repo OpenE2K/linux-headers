@@ -57,9 +57,6 @@ guest_save_local_glob_regs_v2(local_gregs_t *l_gregs, bool is_signal)
 	if (KERNEL_GREGS_MAX_MASK & LOCAL_GREGS_USER_MASK)
 		copy_k_gregs_to_l_gregs(l_gregs,
 				&current_thread_info()->k_gregs);
-	if (HOST_KERNEL_GREGS_MASK & LOCAL_GREGS_USER_MASK)
-		copy_h_gregs_to_l_gregs(l_gregs,
-				&current_thread_info()->h_gregs);
 }
 
 static inline void
@@ -69,9 +66,6 @@ guest_save_local_glob_regs_v5(local_gregs_t *l_gregs, bool is_signal)
 	if (KERNEL_GREGS_MAX_MASK & LOCAL_GREGS_USER_MASK)
 		copy_k_gregs_to_l_gregs(l_gregs,
 				&current_thread_info()->k_gregs);
-	if (HOST_KERNEL_GREGS_MASK & LOCAL_GREGS_USER_MASK)
-		copy_h_gregs_to_l_gregs(l_gregs,
-				&current_thread_info()->h_gregs);
 }
 
 static inline void
@@ -93,9 +87,6 @@ guest_restore_local_glob_regs_v2(const local_gregs_t *l_gregs, bool is_signal)
 	if (KERNEL_GREGS_MAX_MASK & LOCAL_GREGS_USER_MASK)
 		get_k_gregs_from_l_regs(&current_thread_info()->k_gregs,
 					l_gregs);
-	if (HOST_KERNEL_GREGS_MASK & LOCAL_GREGS_USER_MASK)
-		get_h_gregs_from_l_regs(&current_thread_info()->h_gregs,
-					l_gregs);
 }
 
 static inline void
@@ -105,9 +96,6 @@ guest_restore_local_glob_regs_v5(const local_gregs_t *l_gregs, bool is_signal)
 	if (KERNEL_GREGS_MAX_MASK & LOCAL_GREGS_USER_MASK)
 		get_k_gregs_from_l_regs(&current_thread_info()->k_gregs,
 					l_gregs);
-	if (HOST_KERNEL_GREGS_MASK & LOCAL_GREGS_USER_MASK)
-		get_h_gregs_from_l_regs(&current_thread_info()->h_gregs,
-					l_gregs);
 }
 
 static inline void
@@ -115,7 +103,6 @@ guest_get_all_user_glob_regs(global_regs_t *gregs)
 {
 	machine.save_gregs(gregs);
 	copy_k_gregs_to_gregs(gregs, &current_thread_info()->k_gregs);
-	copy_h_gregs_to_gregs(gregs, &current_thread_info()->h_gregs);
 }
 
 #ifdef CONFIG_GREGS_CONTEXT
@@ -126,8 +113,6 @@ guest_get_all_user_glob_regs(global_regs_t *gregs)
 	KVM_SAVE_VCPU_STATE_BASE(vcpu_base); \
 	NATIVE_INIT_G_REGS(); \
 	KVM_RESTORE_VCPU_STATE_BASE(vcpu_base); \
-	clear_memory_8(&current_thread_info()->h_gregs, \
-			sizeof(current_thread_info()->h_gregs), ETAGEWD); \
 })
 #define BOOT_KVM_INIT_G_REGS() \
 ({ \
@@ -310,7 +295,7 @@ do { \
 			e2k_addr_t ktx =				\
 				(e2k_addr_t)&(kernel_tcellar_ext[cnt].data); \
 			e2k_addr_t tx =					\
-				(e2k_addr_t)&(kernel_tcellar_ext[cnt].data); \
+				(e2k_addr_t)&(tcellar[cnt].data_ext); \
 			kvm_move_tagged_dword(kt, t);			\
 			if (is_qp) {					\
 				kvm_move_tagged_dword(ktx, tx);		\

@@ -214,7 +214,7 @@ native_collapse_kernel_ps(u64 *dst, const u64 *src, u64 spilled_size)
 	size = k_psp_hi.PSP_hi_ind - spilled_size;
 	BUG_ON(!IS_ALIGNED(size, ALIGN_PSTACK_TOP_SIZE) || (s64) size < 0);
 
-	prefetchw_range(src, size);
+	prefetch_nospec_range(src, size);
 	native_kernel_hw_stack_frames_copy(dst, src, size);
 
 	k_psp_hi.PSP_hi_ind -= spilled_size;
@@ -327,7 +327,7 @@ static inline int __copy_user_to_current_hw_stack(void *dst, void __user *src,
 			E2K_FLUSHR;
 
 		SET_USR_PFAULT("$.recovery_memcpy_fault");
-		fast_tagged_memory_copy_from_user(dst, src, size, regs,
+		fast_tagged_memory_copy_from_user(dst, src, size, NULL, regs,
 				TAGGED_MEM_STORE_REC_OPC |
 				MAS_BYPASS_L1_CACHE << LDST_REC_OPC_MAS_SHIFT,
 				TAGGED_MEM_LOAD_REC_OPC |
@@ -395,8 +395,8 @@ static inline int copy_e2k_stack_to_user(void __user *dst, void *src,
 }
 
 static __always_inline int
-user_hw_stack_frames_copy(void __user *dst, void *src, unsigned long copy_size,
-		const pt_regs_t *regs, unsigned long hw_stack_ind, bool is_pcsp)
+user_hw_stack_frames_copy(void __user *dst, void *src, long copy_size,
+		const pt_regs_t *regs, long hw_stack_ind, bool is_pcsp)
 {
 	unsigned long ts_flag;
 
@@ -414,7 +414,7 @@ user_hw_stack_frames_copy(void __user *dst, void *src, unsigned long copy_size,
 	SET_USR_PFAULT("$.recovery_memcpy_fault");
 
 	ts_flag = set_ts_flag(TS_KERNEL_SYSCALL);
-	fast_tagged_memory_copy_to_user(dst, src, copy_size, regs,
+	fast_tagged_memory_copy_to_user(dst, src, copy_size, NULL, regs,
 			TAGGED_MEM_STORE_REC_OPC |
 			MAS_BYPASS_L1_CACHE << LDST_REC_OPC_MAS_SHIFT,
 			TAGGED_MEM_LOAD_REC_OPC |

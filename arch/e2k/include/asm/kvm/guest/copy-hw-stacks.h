@@ -11,6 +11,7 @@
 #include <asm/stacks.h>
 
 #include <asm/kvm/guest/trace-hw-stacks.h>
+#include <asm/kvm/guest/trace-tlb-state.h>
 
 extern bool debug_ustacks;
 #undef	DEBUG_USER_STACKS_MODE
@@ -129,14 +130,18 @@ copy_stack_page_to_user(void __user *dst, void *src, e2k_size_t to_copy,
 	ts_flag = set_ts_flag(TS_KERNEL_SYSCALL);
 	do {
 		npages = __get_user_pages_fast(addr, 1, 1, &page);
-		if (npages == 1)
+		if (likely(npages == 1))
 			break;
 		npages = get_user_pages_unlocked(addr, 1, &page, FOLL_WRITE);
-		if (npages == 1)
+		if (likely(npages == 1)) {
 			break;
+		} else if (npages < 0) {
+			ret = npages;
+		} else {
+			ret = -EFAULT;
+		}
 		clear_ts_flag(ts_flag);
 		set_fs(seg);
-		ret = -EFAULT;
 		goto failed;
 	} while (npages != 1);
 	clear_ts_flag(ts_flag);
@@ -217,7 +222,12 @@ kvm_copy_user_stack_from_kernel(void __user *dst, void *src,
 	return 0;
 
 failed:
-	pr_err("%s(): failed, error %d\n", __func__, ret);
+	if (likely(ret == -ERESTARTSYS && fatal_signal_pending(current))) {
+		/* there is fatal signal to kill the process */
+		;
+	} else {
+		pr_err("%s(): failed, error %d\n", __func__, ret);
+	}
 	return ret;
 }
 
@@ -303,10 +313,17 @@ kvm_user_hw_stacks_copy(pt_regs_t *regs)
 	}
 	if (to_copy > 0) {
 		ret = kvm_copy_user_stack_from_kernel(dst, src, to_copy, false);
-		if (ret != 0) {
-			pr_err("%s(): procedure stack copying from kernel %px "
-				"to user %px, size 0x%lx failed, error %d\n",
-				__func__, src, dst, to_copy, ret);
+		if (unlikely(ret != 0)) {
+			if (likely(ret == -ERESTARTSYS &&
+					fatal_signal_pending(current))) {
+				/* there is fatal signal to kill the process */
+				;
+			} else {
+				pr_err("%s(): procedure stack copying from "
+					"kernel %px to user %px, size 0x%lx "
+					"failed, error %d\n",
+					__func__, src, dst, to_copy, ret);
+			}
 			goto failed;
 		}
 		regs->copyed.ps_size = to_copy;
@@ -347,10 +364,16 @@ kvm_user_hw_stacks_copy(pt_regs_t *regs)
 	}
 	if (to_copy > 0) {
 		ret = kvm_copy_user_stack_from_kernel(dst, src, to_copy, true);
-		if (ret != 0) {
-			pr_err("%s(): chain stack copying from kernel %px "
-				"to user %px, size 0x%lx failed, error %d\n",
-				__func__, src, dst, to_copy, ret);
+		if (unlikely(ret != 0)) {
+			if (likely(ret == -ERESTARTSYS &&
+					fatal_signal_pending(current))) {
+				/* there is fatal signal to kill the process */
+				;
+			} else {
+				pr_err("%s(): chain stack copying from kernel %px "
+					"to user %px, size 0x%lx failed, error %d\n",
+					__func__, src, dst, to_copy, ret);
+			}
 			goto failed;
 		}
 		regs->copyed.pcs_size = to_copy;
@@ -382,7 +405,7 @@ kvm_copy_injected_pcs_frames_to_user(pt_regs_t *regs, int frames_num)
 	BUG_ON(irqs_disabled());
 
 	frames_size = frames_num * SZ_OF_CR;
-	copyed_frames_size  = regs->copyed.pcs_injected_frames_size;
+	copyed_frames_size = regs->copyed.pcs_injected_frames_size;
 	if (unlikely(copyed_frames_size >= frames_size)) {
 		/* all frames have been already copyed */
 		return 0;
@@ -402,8 +425,8 @@ kvm_copy_injected_pcs_frames_to_user(pt_regs_t *regs, int frames_num)
 		"ind 0x%lx, pcsh top 0x%x\n",
 		src, pcs_size, frames_size, pcs_ind, pcsh_top);
 	BUG_ON(regs->copyed.pcs_size + frames_size > pcs_ind + pcsh_top);
-	if (stacks->pcsp_hi.PCSP_hi_ind + frames_size >
-						stacks->pcsp_hi.PCSP_hi_size) {
+	if (unlikely(stacks->pcsp_hi.PCSP_hi_ind + frames_size >
+						stacks->pcsp_hi.PCSP_hi_size)) {
 		/* user chain stack can overflow, need expand */
 		ret = handle_chain_stack_bounds(stacks, regs->trap);
 		if (unlikely(ret)) {
@@ -430,10 +453,16 @@ kvm_copy_injected_pcs_frames_to_user(pt_regs_t *regs, int frames_num)
 	}
 	if (likely(to_copy > 0)) {
 		ret = kvm_copy_user_stack_from_kernel(dst, src, to_copy, true);
-		if (ret != 0) {
-			pr_err("%s(): chain stack copying from kernel %px "
-				"to user %px, size 0x%lx failed, error %d\n",
-				__func__, src, dst, to_copy, ret);
+		if (unlikely(ret != 0)) {
+			if (likely(ret == -ERESTARTSYS &&
+					fatal_signal_pending(current))) {
+				/* there is fatal signal to kill the process */
+				;
+			} else {
+				pr_err("%s(): chain stack copying from kernel %px "
+					"to user %px, size 0x%lx failed, error %d\n",
+					__func__, src, dst, to_copy, ret);
+			}
 			goto failed;
 		}
 		regs->copyed.pcs_injected_frames_size = to_copy;
@@ -503,9 +532,14 @@ static __always_inline int kvm_user_hw_stacks_prepare(
 	 *    kvm_prepare_user_hv_stacks()
 	 */
 	ret = kvm_user_hw_stacks_copy(regs);
-	if (ret != 0) {
-		pr_err("%s(): copying of hardware stacks failed< error %d\n",
-			__func__, ret);
+	if (unlikely(ret != 0)) {
+		if (likely(ret == -ERESTARTSYS)) {
+			/* there is fatal signal to kill the process */
+			;
+		} else {
+			pr_err("%s(): copying of hardware stacks failed, error %d\n",
+				__func__, ret);
+		}
 		do_exit(SIGKILL);
 	}
 	return ret;
@@ -549,7 +583,7 @@ static __always_inline void host_user_hw_stacks_prepare(
 		struct e2k_stacks *stacks, pt_regs_t *regs,
 		u64 cur_window_q, enum restore_caller from, int syscall)
 {
-	if (regs->sys_num == __NR_e2k_longjmp2) {
+	if (unlikely(from_syscall(regs) && regs->sys_num == __NR_e2k_longjmp2)) {
 		/* hardware stacks already are prepared */
 		return;
 	}

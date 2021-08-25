@@ -2,7 +2,7 @@
 VERSION = 5
 PATCHLEVEL = 4
 SUBLEVEL = 91
-EXTRAVERSION = -2.13
+EXTRAVERSION = -3.6
 NAME = Kleptomaniac Octopus
 
 # *DOCUMENTATION*
@@ -505,9 +505,6 @@ KBUILD_CFLAGS   := -Wall -Wundef -Werror=strict-prototypes -Wno-trigraphs \
 		   -Werror=implicit-function-declaration -Werror=implicit-int \
 		   -Wno-format-security \
 		   -std=gnu89
-endif
-ifeq  ($(call cc-lcc-yn),y)
-KBUILD_CFLAGS += -fno-ident
 endif
 KBUILD_CPPFLAGS := -D__KERNEL__
 KBUILD_AFLAGS_KERNEL :=

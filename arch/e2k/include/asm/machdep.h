@@ -14,6 +14,7 @@
 #ifdef __KERNEL__
 
 enum {
+	/* Hardware bugs */
 	CPU_HWBUG_LARGE_PAGES,
 	CPU_HWBUG_LAPIC_TIMER,
 	CPU_HWBUG_PIO_READS,
@@ -42,10 +43,15 @@ enum {
 	CPU_HWBUG_E16C_SLEEP,
 	CPU_HWBUG_L1I_STOPS_WORKING,
 	CPU_HWBUG_CLW_STALE_L1_ENTRY,
+	CPU_HWBUG_PIPELINE_FREEZE_MONITORS,
 	CPU_HWBUG_C3_WAIT_MA_C,
 	CPU_HWBUG_VIRT_SCLKM3_INTC,
-	CPU_HWBUG_VIRT_PSIZE_INTERCEPTION,
+	CPU_HWBUG_VIRT_PUSD_PSL,
 	CPU_HWBUG_USD_ALIGNMENT,
+	CPU_HWBUG_VIRT_PSIZE_INTERCEPTION,
+	CPU_NO_HWBUG_SOFT_WAIT,
+
+	/* Features, not bugs */
 	CPU_FEAT_WC_PCI_PREFETCH,
 	CPU_FEAT_FLUSH_DC_IC,
 	CPU_FEAT_EPIC,
@@ -55,6 +61,7 @@ enum {
 	CPU_FEAT_ISET_V3,
 	CPU_FEAT_ISET_V5,
 	CPU_FEAT_ISET_V6,
+
 	NR_CPU_FEATURES
 };
 
@@ -107,7 +114,6 @@ typedef struct machdep {
 	u8		sic_mc_count;
 	u32		sic_mc1_ecc;
 	u32		sic_io_str1;
-	u32		clock_tick_rate;
 
 	unsigned long cpu_features[(NR_CPU_FEATURES + 63) / 64];
 
@@ -304,31 +310,18 @@ CPUHAS(CPU_HWBUG_DMA_AT_APIC_ADDR,
  * pending exc_data_debug exceptions.
  * Workaround - disable data monitor profiling in kernel. */
 CPUHAS(CPU_HWBUG_KERNEL_DATA_MONITOR,
-		!IS_ENABLED(CONFIG_CPU_ES2) && !IS_ENABLED(CONFIG_CPU_E2S) &&
-		!IS_ENABLED(CONFIG_CPU_E8C) && !IS_ENABLED(CONFIG_CPU_E1CP),
-		false,
+		IS_ENABLED(CONFIG_E2K_MACHINE),
+		IS_ENABLED(CONFIG_CPU_ES2) || IS_ENABLED(CONFIG_CPU_E2S) ||
+			IS_ENABLED(CONFIG_CPU_E8C) || IS_ENABLED(CONFIG_CPU_E1CP),
 		cpu == IDR_ES2_DSP_MDL || cpu == IDR_ES2_RU_MDL ||
-		cpu == IDR_E2S_MDL || cpu == IDR_E8C_MDL ||
-		cpu == IDR_E1CP_MDL);
+			cpu == IDR_E2S_MDL || cpu == IDR_E8C_MDL ||
+			cpu == IDR_E1CP_MDL);
 /* #89495 - write barrier does not work (even for atomics).
  * Workaround - special command sequence after every read-acquire. */
 CPUHAS(CPU_HWBUG_WRITE_MEMORY_BARRIER,
 		!IS_ENABLED(CONFIG_CPU_E8C),
 		false,
 		cpu == IDR_E8C_MDL && revision <= 1);
-/* On some processor's revisions writecombine memory
- * in prefetchable PCI area is not allowed. */
-CPUHAS(CPU_FEAT_WC_PCI_PREFETCH,
-		!IS_ENABLED(CONFIG_CPU_ES2),
-		true,
-		!((cpu == IDR_ES2_DSP_MDL || cpu == IDR_ES2_RU_MDL) &&
-		  revision == 0));
-/* #82499 - Instruction Cache must be handled carefully
- * when flush_dc_line also flushes IC by physical address. */
-CPUHAS(CPU_FEAT_FLUSH_DC_IC,
-		CONFIG_CPU_ISET != 0,
-		CONFIG_CPU_ISET >= 3,
-		iset_ver >= E2K_ISET_V3);
 /* #89653 - some hw counter won't reset, which may cause corruption of DMA.
  * Workaround - reset machine until the counter sets in good value */
 CPUHAS(CPU_HWBUG_BAD_RESET,
@@ -338,12 +331,12 @@ CPUHAS(CPU_HWBUG_BAD_RESET,
 /* #90514 - hardware hangs after modifying code with a breakpoint.
  * Workaround - use HS.lng from the instruction being replaced. */
 CPUHAS(CPU_HWBUG_BREAKPOINT_INSTR,
-		!IS_ENABLED(CONFIG_CPU_ES2) && !IS_ENABLED(CONFIG_CPU_E2S) &&
-		!IS_ENABLED(CONFIG_CPU_E8C) && !IS_ENABLED(CONFIG_CPU_E8C2),
-		false,
+		IS_ENABLED(CONFIG_E2K_MACHINE),
+		IS_ENABLED(CONFIG_CPU_ES2) || IS_ENABLED(CONFIG_CPU_E2S) ||
+			IS_ENABLED(CONFIG_CPU_E8C) || IS_ENABLED(CONFIG_CPU_E8C2),
 		cpu == IDR_ES2_DSP_MDL || cpu == IDR_ES2_RU_MDL ||
-		cpu == IDR_E2S_MDL || cpu == IDR_E8C_MDL ||
-		cpu == IDR_E8C2_MDL);
+			cpu == IDR_E2S_MDL || cpu == IDR_E8C_MDL ||
+			cpu == IDR_E8C2_MDL);
 /* #92834, #96516 - hang because of hardware problems.
  * Workaround - boot activates watchdog, kernel should disable it */
 CPUHAS(CPU_HWBUG_E8C_WATCHDOG,
@@ -367,13 +360,12 @@ CPUHAS(CPU_HWBUG_WC_DAM,
 /* 96719 - combination of flags s_f=0, store=1, sru=1 is possible
  * Workaround - treat it as s_f=1, store=1, sru=1 */
 CPUHAS(CPU_HWBUG_TRAP_CELLAR_S_F,
-		!IS_ENABLED(CONFIG_CPU_ES2) && !IS_ENABLED(CONFIG_CPU_E2S) &&
-		!IS_ENABLED(CONFIG_CPU_E8C) && !IS_ENABLED(CONFIG_CPU_E1CP) &&
-		!IS_ENABLED(CONFIG_CPU_E8C2),
-		false,
+		IS_ENABLED(CONFIG_E2K_MACHINE) && !IS_ENABLED(CONFIG_CPU_E8C2),
+		IS_ENABLED(CONFIG_CPU_ES2) || IS_ENABLED(CONFIG_CPU_E2S) ||
+			IS_ENABLED(CONFIG_CPU_E8C) || IS_ENABLED(CONFIG_CPU_E1CP),
 		cpu == IDR_ES2_DSP_MDL || cpu == IDR_ES2_RU_MDL ||
-		cpu == IDR_E2S_MDL || cpu == IDR_E8C_MDL ||
-		cpu == IDR_E1CP_MDL || cpu == IDR_E8C2_MDL && revision == 0);
+			cpu == IDR_E2S_MDL || cpu == IDR_E8C_MDL ||
+			cpu == IDR_E1CP_MDL || cpu == IDR_E8C2_MDL && revision == 0);
 /* #97594 - %cr1_lo.ss flag is lost if ext. interrupt arrives faster.
  * Workaround - manually set %cr1_lo.ss again in interrupt handler */
 CPUHAS(CPU_HWBUG_SS,
@@ -388,54 +380,53 @@ CPUHAS(CPU_HWBUG_SS,
 /* #99302 - %aaldv sometimes is not restored properly.
  * Workaround - insert 'wait ma_c' barrier */
 CPUHAS(CPU_HWBUG_AAU_AALDV,
-		!IS_ENABLED(CONFIG_CPU_ES2) && !IS_ENABLED(CONFIG_CPU_E2S) &&
-		!IS_ENABLED(CONFIG_CPU_E8C) && !IS_ENABLED(CONFIG_CPU_E1CP) &&
-		!IS_ENABLED(CONFIG_CPU_E8C2),
-		false,
+		IS_ENABLED(CONFIG_E2K_MACHINE) && !IS_ENABLED(CONFIG_CPU_E8C2),
+		IS_ENABLED(CONFIG_CPU_ES2) || IS_ENABLED(CONFIG_CPU_E2S) ||
+			IS_ENABLED(CONFIG_CPU_E8C) || IS_ENABLED(CONFIG_CPU_E1CP),
 		cpu == IDR_ES2_DSP_MDL || cpu == IDR_ES2_RU_MDL ||
-		cpu == IDR_E2S_MDL || cpu == IDR_E8C_MDL ||
-		cpu == IDR_E1CP_MDL || cpu == IDR_E8C2_MDL && revision == 0);
+			cpu == IDR_E2S_MDL || cpu == IDR_E8C_MDL ||
+			cpu == IDR_E1CP_MDL || cpu == IDR_E8C2_MDL && revision == 0);
 /* #103223 - LAPIC does not send EoI to IO_APIC for level interrupts.
  * Workaround - wait under closed interrupts until APIC_ISR clears */
 CPUHAS(CPU_HWBUG_LEVEL_EOI,
-		!IS_ENABLED(CONFIG_CPU_ES2) && !IS_ENABLED(CONFIG_CPU_E2S) &&
-		!IS_ENABLED(CONFIG_CPU_E8C) && !IS_ENABLED(CONFIG_CPU_E1CP) &&
-		!IS_ENABLED(CONFIG_CPU_E8C2),
-		false,
+		IS_ENABLED(CONFIG_E2K_MACHINE),
+		IS_ENABLED(CONFIG_CPU_ES2) || IS_ENABLED(CONFIG_CPU_E2S) ||
+			IS_ENABLED(CONFIG_CPU_E8C) || IS_ENABLED(CONFIG_CPU_E1CP) ||
+			IS_ENABLED(CONFIG_CPU_E8C2),
 		cpu == IDR_ES2_DSP_MDL || cpu == IDR_ES2_RU_MDL ||
-		cpu == IDR_E2S_MDL || cpu == IDR_E8C_MDL ||
-		cpu == IDR_E1CP_MDL || cpu == IDR_E8C2_MDL);
+			cpu == IDR_E2S_MDL || cpu == IDR_E8C_MDL ||
+			cpu == IDR_E1CP_MDL || cpu == IDR_E8C2_MDL);
 /* #104865 - hardware might generate a false single step interrupt
  * Workaround - clean frame 0 of PCS during the allocation */
 CPUHAS(CPU_HWBUG_FALSE_SS,
-		!IS_ENABLED(CONFIG_CPU_ES2) && !IS_ENABLED(CONFIG_CPU_E2S) &&
-		!IS_ENABLED(CONFIG_CPU_E8C) && !IS_ENABLED(CONFIG_CPU_E1CP) &&
-		!IS_ENABLED(CONFIG_CPU_E8C2),
-		false,
+		IS_ENABLED(CONFIG_E2K_MACHINE) && !IS_ENABLED(CONFIG_CPU_E2S) &&
+			!IS_ENABLED(CONFIG_CPU_E8C),
+		IS_ENABLED(CONFIG_CPU_ES2) || IS_ENABLED(CONFIG_CPU_E1CP) ||
+			IS_ENABLED(CONFIG_CPU_E8C2),
 		cpu == IDR_ES2_DSP_MDL || cpu == IDR_ES2_RU_MDL ||
-		cpu == IDR_E2S_MDL && revision <= 2 ||
-		cpu == IDR_E8C_MDL && revision <= 2 ||
-		cpu == IDR_E1CP_MDL || cpu == IDR_E8C2_MDL);
+			cpu == IDR_E2S_MDL && revision <= 2 ||
+			cpu == IDR_E8C_MDL && revision <= 2 ||
+			cpu == IDR_E1CP_MDL || cpu == IDR_E8C2_MDL);
 /* #117649 - false exc_data_debug are generated based on _previous_
  * values in ld/st address registers.
  * Workaround - forbid data breakpoint on the first 31 bytes
  * (hardware prefetch works with 32 bytes blocks). */
 CPUHAS(CPU_HWBUG_SPURIOUS_EXC_DATA_DEBUG,
-		!IS_ENABLED(CONFIG_CPU_ES2) && !IS_ENABLED(CONFIG_CPU_E2S) &&
-		!IS_ENABLED(CONFIG_CPU_E8C) && !IS_ENABLED(CONFIG_CPU_E1CP) &&
-		!IS_ENABLED(CONFIG_CPU_E8C2) && !IS_ENABLED(CONFIG_CPU_E16C) &&
-		!IS_ENABLED(CONFIG_CPU_E2C3),
-		false,
+		IS_ENABLED(CONFIG_E2K_MACHINE) && !IS_ENABLED(CONFIG_CPU_E16C) &&
+			!IS_ENABLED(CONFIG_CPU_E2C3),
+		IS_ENABLED(CONFIG_CPU_ES2) || IS_ENABLED(CONFIG_CPU_E2S) ||
+			IS_ENABLED(CONFIG_CPU_E8C) || IS_ENABLED(CONFIG_CPU_E1CP) ||
+			IS_ENABLED(CONFIG_CPU_E8C2),
 		cpu == IDR_ES2_DSP_MDL || cpu == IDR_ES2_RU_MDL ||
-		cpu == IDR_E2S_MDL || cpu == IDR_E8C_MDL ||
-		cpu == IDR_E1CP_MDL || cpu == IDR_E8C2_MDL ||
-		cpu == IDR_E16C_MDL && revision == 0 ||
-		cpu == IDR_E2C3_MDL && revision == 0);
+			cpu == IDR_E2S_MDL || cpu == IDR_E8C_MDL ||
+			cpu == IDR_E1CP_MDL || cpu == IDR_E8C2_MDL ||
+			cpu == IDR_E16C_MDL && revision == 0 ||
+			cpu == IDR_E2C3_MDL && revision == 0);
 /* #119084 - several TBL flushes in a row might fail to flush L1D.
  * Workaround - insert "wait fl_c" immediately after every TLB flush */
 CPUHAS(CPU_HWBUG_TLB_FLUSH_L1D,
-		!IS_ENABLED(CONFIG_CPU_E8C2),
-		false,
+		IS_ENABLED(CONFIG_E2K_MACHINE),
+		IS_ENABLED(CONFIG_CPU_E8C2),
 		cpu == IDR_E8C2_MDL);
 /* #121311 - asynchronous entries in INTC_INFO_MU always have "pm" bit set.
  * Workaround - use "pm" bit saved in guest's chain stack. */
@@ -445,7 +436,7 @@ CPUHAS(CPU_HWBUG_GUEST_ASYNC_PM,
 		cpu == IDR_E16C_MDL && revision == 0 ||
 		cpu == IDR_E2C3_MDL && revision == 0);
 /* #122946 - conflict new interrupt while sync signal turning off.
- * Workaround - wating for C0 after E2K_WAIT_V6 */
+ * Workaround - wating for C0 after "wait int=1" */
 CPUHAS(CPU_HWBUG_E16C_SLEEP,
 		!IS_ENABLED(CONFIG_CPU_E16C),
 		false,
@@ -454,32 +445,40 @@ CPUHAS(CPU_HWBUG_E16C_SLEEP,
  * Workaround - prepare %ctpr's in glaunch/trap handler entry;
  * avoid rbranch in glaunch/trap handler entry and exit. */
 CPUHAS(CPU_HWBUG_L1I_STOPS_WORKING,
-		!IS_ENABLED(CONFIG_CPU_ES2) && !IS_ENABLED(CONFIG_CPU_E2S) &&
-		!IS_ENABLED(CONFIG_CPU_E8C) && !IS_ENABLED(CONFIG_CPU_E1CP) &&
-		!IS_ENABLED(CONFIG_CPU_E8C2) && !IS_ENABLED(CONFIG_CPU_E16C) &&
-		!IS_ENABLED(CONFIG_CPU_E2C3),
-		false,
+		IS_ENABLED(CONFIG_E2K_MACHINE) && !IS_ENABLED(CONFIG_CPU_E16C) &&
+			!IS_ENABLED(CONFIG_CPU_E2C3),
+		IS_ENABLED(CONFIG_CPU_ES2) || IS_ENABLED(CONFIG_CPU_E2S) ||
+			IS_ENABLED(CONFIG_CPU_E8C) || IS_ENABLED(CONFIG_CPU_E1CP) ||
+			IS_ENABLED(CONFIG_CPU_E8C2),
 		cpu == IDR_ES2_DSP_MDL || cpu == IDR_ES2_RU_MDL ||
-		cpu == IDR_E2S_MDL || cpu == IDR_E8C_MDL ||
-		cpu == IDR_E1CP_MDL || cpu == IDR_E8C2_MDL ||
-		cpu == IDR_E16C_MDL && revision == 0 ||
-		cpu == IDR_E2C3_MDL && revision == 0);
+			cpu == IDR_E2S_MDL || cpu == IDR_E8C_MDL ||
+			cpu == IDR_E1CP_MDL || cpu == IDR_E8C2_MDL ||
+			cpu == IDR_E16C_MDL && revision == 0 ||
+			cpu == IDR_E2C3_MDL && revision == 0);
 /* #124947 - CLW clearing by OS must be done on the same CPU that started the
  * hardware clearing operation to avoid creating a stale L1 entry.
  * Workaround - forbid migration until CLW clearing is finished in software. */
 CPUHAS(CPU_HWBUG_CLW_STALE_L1_ENTRY,
-		!IS_ENABLED(CONFIG_CPU_E2S) && !IS_ENABLED(CONFIG_CPU_E8C) &&
-		!IS_ENABLED(CONFIG_CPU_E8C2) && !IS_ENABLED(CONFIG_CPU_E16C),
-		false,
+		IS_ENABLED(CONFIG_E2K_MACHINE) && !IS_ENABLED(CONFIG_CPU_E16C),
+		IS_ENABLED(CONFIG_CPU_E2S) || IS_ENABLED(CONFIG_CPU_E8C) ||
+			IS_ENABLED(CONFIG_CPU_E8C2),
 		cpu == IDR_E2S_MDL || cpu == IDR_E8C_MDL || cpu == IDR_E8C2_MDL ||
-		cpu == IDR_E16C_MDL && revision == 0);
+			cpu == IDR_E16C_MDL && revision == 0);
+/* #125405 - CPU pipeline freeze feature conflicts with performance monitoring.
+ * Workaround - disable pipeline freeze when monitoring is enabled. */
+CPUHAS(CPU_HWBUG_PIPELINE_FREEZE_MONITORS,
+		IS_ENABLED(CONFIG_E2K_MACHINE),
+		IS_ENABLED(CONFIG_CPU_E8C2) || IS_ENABLED(CONFIG_CPU_E16C) ||
+			IS_ENABLED(CONFIG_CPU_E2C3) || IS_ENABLED(CONFIG_CPU_E12C),
+		cpu == IDR_E8C2_MDL || cpu == IDR_E16C_MDL ||
+			cpu == IDR_E2C3_MDL || cpu == IDR_E12C_MDL);
 /* #126587 - "wait ma_c=1" does not wait for all L2$ writebacks to complete
  * when disabling CPU core with "wait trap=1" algorithm.
  * Workaround - manually insert 66 NOPs before "wait trap=1" */
 CPUHAS(CPU_HWBUG_C3_WAIT_MA_C,
-		!IS_ENABLED(CONFIG_CPU_E2S) && !IS_ENABLED(CONFIG_CPU_E8C) &&
-		!IS_ENABLED(CONFIG_CPU_E1CP),
-		false,
+		IS_ENABLED(CONFIG_E2K_MACHINE),
+		IS_ENABLED(CONFIG_CPU_E2S) || IS_ENABLED(CONFIG_CPU_E8C) ||
+			IS_ENABLED(CONFIG_CPU_E1CP),
 		cpu == IDR_E2S_MDL || cpu == IDR_E8C_MDL || cpu == IDR_E1CP_MDL);
 /* #128127 - Intercepting SCLKM3 write does not prevent guest from writing it.
  * Workaround - Update SH_SCLKM3 in intercept handler */
@@ -488,10 +487,9 @@ CPUHAS(CPU_HWBUG_VIRT_SCLKM3_INTC,
 		false,
 		cpu == IDR_E16C_MDL && revision == 0 ||
 		cpu == IDR_E2C3_MDL && revision == 0);
-/* #130039 - intercepting some specific sequences of call/return/setwd
- * (that change WD.psize in a specific way) does not work.
- * Workaround - avoid those sequences. */
-CPUHAS(CPU_HWBUG_VIRT_PSIZE_INTERCEPTION,
+/* #128350 - glaunch increases guest's pusd.psl by 1 on phase 1
+ * Workaround - decrease guest's pusd.psl by 1 before glaunch */
+CPUHAS(CPU_HWBUG_VIRT_PUSD_PSL,
 		!IS_ENABLED(CONFIG_CPU_E16C) && !IS_ENABLED(CONFIG_CPU_E2C3),
 		false,
 		cpu == IDR_E16C_MDL && revision == 0 ||
@@ -500,16 +498,50 @@ CPUHAS(CPU_HWBUG_VIRT_PSIZE_INTERCEPTION,
  * Workaround - write usd_lo before usd_hi, while keeping 2 tact distance from sbr write.
  * Valid sequences are: sbr, nop, usd.lo, usd.hi OR sbr, usd.lo, usd.hi, usd.lo */
 CPUHAS(CPU_HWBUG_USD_ALIGNMENT,
-		!IS_ENABLED(CONFIG_CPU_ES2) && !IS_ENABLED(CONFIG_CPU_E2S) &&
-		!IS_ENABLED(CONFIG_CPU_E8C) && !IS_ENABLED(CONFIG_CPU_E1CP) &&
-		!IS_ENABLED(CONFIG_CPU_E8C2) && !IS_ENABLED(CONFIG_CPU_E16C) &&
-		!IS_ENABLED(CONFIG_CPU_E2C3) && !IS_ENABLED(CONFIG_CPU_E12C),
-		false,
+		IS_ENABLED(CONFIG_E2K_MACHINE),
+		IS_ENABLED(CONFIG_CPU_ES2) || IS_ENABLED(CONFIG_CPU_E2S) ||
+			IS_ENABLED(CONFIG_CPU_E8C) || IS_ENABLED(CONFIG_CPU_E1CP) ||
+			IS_ENABLED(CONFIG_CPU_E8C2) || IS_ENABLED(CONFIG_CPU_E16C) ||
+			IS_ENABLED(CONFIG_CPU_E2C3) || IS_ENABLED(CONFIG_CPU_E12C),
 		cpu == IDR_ES2_DSP_MDL || cpu == IDR_ES2_RU_MDL ||
-		cpu == IDR_E2S_MDL || cpu == IDR_E8C_MDL ||
-		cpu == IDR_E1CP_MDL || cpu == IDR_E8C2_MDL ||
-		cpu == IDR_E16C_MDL || cpu == IDR_E2C3_MDL ||
-		cpu == IDR_E12C_MDL);
+			cpu == IDR_E2S_MDL || cpu == IDR_E8C_MDL ||
+			cpu == IDR_E1CP_MDL || cpu == IDR_E8C2_MDL ||
+			cpu == IDR_E16C_MDL || cpu == IDR_E2C3_MDL ||
+			cpu == IDR_E12C_MDL);
+/* #130039 - intercepting some specific sequences of call/return/setwd
+ * (that change WD.psize in a specific way) does not work.
+ * Workaround - avoid those sequences. */
+CPUHAS(CPU_HWBUG_VIRT_PSIZE_INTERCEPTION,
+		!IS_ENABLED(CONFIG_CPU_E16C) && !IS_ENABLED(CONFIG_CPU_E2C3),
+		false,
+		cpu == IDR_E16C_MDL && revision == 0 ||
+		cpu == IDR_E2C3_MDL && revision == 0);
+
+/* #130066, #134351 - L1/L2 do not respect "lal"/"las"/"sas"/"st_rel" barriers.
+ * Workaround - do not use "las"/"sas"/"st_rel", and add 5 nops after "lal". */
+CPUHAS(CPU_NO_HWBUG_SOFT_WAIT,
+		!IS_ENABLED(CONFIG_CPU_E16C) && !IS_ENABLED(CONFIG_CPU_E2C3),
+		true,
+		!(cpu == IDR_E16C_MDL && revision == 0 ||
+		  cpu == IDR_E2C3_MDL && revision == 0));
+
+/*
+ * Not bugs but features go here
+ */
+
+/* On some processor's revisions writecombine memory
+ * in prefetchable PCI area is not allowed. */
+CPUHAS(CPU_FEAT_WC_PCI_PREFETCH,
+		!IS_ENABLED(CONFIG_CPU_ES2),
+		true,
+		!((cpu == IDR_ES2_DSP_MDL || cpu == IDR_ES2_RU_MDL) &&
+		  revision == 0));
+/* #82499 - Instruction Cache must be handled carefully
+ * when flush_dc_line also flushes IC by physical address. */
+CPUHAS(CPU_FEAT_FLUSH_DC_IC,
+		CONFIG_CPU_ISET != 0,
+		CONFIG_CPU_ISET >= 3,
+		iset_ver >= E2K_ISET_V3);
 /* Rely on IDR instead of iset version to choose between APIC and EPIC.
  * For guest we use it's own fake IDR so that we choose between APIC and
  * EPIC based on what hardware guest *thinks* it's being executed on. */
@@ -611,7 +643,12 @@ extern __nodedata pt_struct_t	pgtable_struct;
 # endif	/* E2K_P2V */
 #endif	/* CONFIG_CPU_ISET 0-6 */
 
-#define	IS_HV_GM()		(machine.gmi)
+/* Returns true in guest running with hardware virtualization support */
+#if CONFIG_CPU_ISET >= 3 && !defined E2K_P2V
+# define IS_HV_GM()	(cpu_has(CPU_FEAT_ISET_V6) && READ_CORE_MODE_REG().gmi)
+#else
+# define IS_HV_GM()	(machine.gmi)
+#endif
 
 extern void save_kernel_gregs_v2(struct kernel_gregs *);
 extern void save_kernel_gregs_v5(struct kernel_gregs *);
@@ -691,8 +728,8 @@ void get_and_invalidate_MLT_context_v3(e2k_mlt_t *mlt_state);
 void get_and_invalidate_MLT_context_v6(e2k_mlt_t *mlt_state);
 
 #ifdef CONFIG_SMP
-void clock_off_v3(void);
-void clock_on_v3(int cpu);
+void native_clock_off_v3(void);
+void native_clock_on_v3(int cpu);
 #endif
 
 void C1_enter_v2(void);

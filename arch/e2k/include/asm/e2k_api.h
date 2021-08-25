@@ -3,6 +3,7 @@
 
 #include <linux/stringify.h>
 #include <asm/mas.h>
+#include <uapi/asm/e2k_api.h>
 
 
 #ifndef __ASSEMBLY__
@@ -1330,12 +1331,30 @@ do { \
 
 #define STORE_NV_MAS(_addr, _val, _mas, size_letter, clobber) \
 do { \
-	_Pragma("no_asm_inline") \
-	asm NOT_VOLATILE ("st" #size_letter" %[addr], %[val], mas=%[mas]" \
-		: [addr] "=m" (*(_addr)) \
-		: [val] "r" (_val), \
-		  [mas] "i" (_mas) \
-		: clobber); \
+	if ((_mas) == MAS_STORE_RELEASE_V6(MAS_MT_0) || \
+	    (_mas) == MAS_STORE_RELEASE_V6(MAS_MT_1)) { \
+		_Pragma("no_asm_inline") \
+		asm NOT_VOLATILE ( \
+			ALTERNATIVE( \
+			/* Default version */ \
+				"{wait st_c=1, ld_c=1\n" \
+				" st" #size_letter" %[addr], %[val]}", \
+			/* CPU_NO_HWBUG_SOFT_WAIT version */ \
+				"{st" #size_letter" %[addr], %[val], mas=%[mas]}", \
+			%[facility]) \
+			: [addr] "=m" (*(_addr)) \
+			: [val] "r" (_val), \
+			  [mas] "i" (_mas), \
+			  [facility] "i" (CPU_NO_HWBUG_SOFT_WAIT) \
+			: clobber); \
+	} else { \
+		_Pragma("no_asm_inline") \
+		asm NOT_VOLATILE ("st" #size_letter" %[addr], %[val], mas=%[mas]" \
+			: [addr] "=m" (*(_addr)) \
+			: [val] "r" (_val), \
+			  [mas] "i" (_mas) \
+			: clobber); \
+	} \
 } while (0)
 
 /*
@@ -1352,12 +1371,12 @@ do { \
 # define READ_MAS_BARRIER_AFTER(mas) \
 do { \
 	if ((mas) == MAS_IOADDR) \
-		E2K_WAIT_LD_C_LAL_SAL(); \
+		__E2K_WAIT(_ld_c | _lal | _sal); \
 } while (0)
 # define WRITE_MAS_BARRIER_BEFORE(mas) \
 do { \
 	if ((mas) == MAS_IOADDR) \
-		E2K_WAIT_ST_C_SAS_LD_C_SAL(); \
+		__E2K_WAIT(_st_c | _sas | _ld_c | _sal); \
 } while (0)
 /*
  * Not required by documentation, but this is how
@@ -1366,7 +1385,7 @@ do { \
 # define WRITE_MAS_BARRIER_AFTER(mas) \
 do { \
 	if ((mas) == MAS_IOADDR) \
-		E2K_WAIT_ST_C_SAS(); \
+		__E2K_WAIT(_st_c | _sas); \
 } while (0)
 
 #elif CONFIG_CPU_ISET == 0
@@ -1379,7 +1398,7 @@ do { \
 # define WRITE_MAS_BARRIER_BEFORE(mas) \
 do { \
 	if ((mas) == MAS_IOADDR) \
-		__E2K_WAIT(_st_c | _ld_c); \
+		__E2K_WAIT(_st_c | _sas | _ld_c | _sal); \
 } while (0)
 /*
  * Not required by documentation, but this is how
@@ -1388,7 +1407,7 @@ do { \
 # define WRITE_MAS_BARRIER_AFTER(mas) \
 do { \
 	if ((mas) == MAS_IOADDR) \
-		__E2K_WAIT(_st_c); \
+		__E2K_WAIT(_st_c | _sas); \
 } while (0)
 
 #else
@@ -1519,10 +1538,6 @@ do { \
 })
 
 
-/*
- * Prefetching with fully speculative load is
- * needed when the passed address can be invalid.
- */
 #if !defined(CONFIG_BOOT_E2K) && !defined(E2K_P2V)
 # define E2K_PREFETCH_L2_SPEC(addr) \
 do { \
@@ -1533,42 +1548,23 @@ do { \
 		  "i" (MAS_LOAD_SPEC | MAS_BYPASS_L1_CACHE)); \
 } while (0)
 
-# define E2K_PREFETCH_L2_SPEC_OFFSET(addr, offset) \
+# define E2K_PREFETCH_L2_NOSPEC_OFFSET(addr, offset) \
 do { \
 	int unused; \
-	asm ("ldb,sm %1, %2, %%empty, mas=%3\n" \
-		: "=r" (unused) \
-		: "r" (addr), \
-		  "i" (offset), \
-		  "i" (MAS_LOAD_SPEC | MAS_BYPASS_L1_CACHE)); \
-} while (0)
-
-# define E2K_PREFETCH_L2_OFFSET(addr, offset) \
-do { \
-	int unused; \
-	asm ("ldb,sm %1, %2, %%empty, mas=%3\n" \
+	asm ("ldb %1, %2, %%empty, mas=%3\n" \
 		: "=r" (unused) \
 		: "r" (addr), \
 		  "i" (offset), \
 		  "i" (MAS_BYPASS_L1_CACHE)); \
 } while (0)
 
-# define E2K_PREFETCH_L2_256(addr) \
+# define E2K_PREFETCH_L2_NOSPEC_256(addr) \
 do { \
 	int unused; \
-	asm (	"ldb,0,sm %1, 0, %%empty, mas=%2\n" \
-		"ldb,2,sm %1, 64, %%empty, mas=%2\n" \
-		"ldb,3,sm %1, 128, %%empty, mas=%2\n" \
-		"ldb,5,sm %1, 192, %%empty, mas=%2" \
-		: "=r" (unused) \
-		: "r" (addr), \
-		  "i" (MAS_BYPASS_L1_CACHE)); \
-} while (0)
-
-# define E2K_PREFETCH_L2(addr) \
-do { \
-	int unused; \
-	asm ("ldb,sm %1, 0, %%empty, mas=%2" \
+	asm (	"ldb,0 %1, 0, %%empty, mas=%2\n" \
+		"ldb,2 %1, 64, %%empty, mas=%2\n" \
+		"ldb,3 %1, 128, %%empty, mas=%2\n" \
+		"ldb,5 %1, 192, %%empty, mas=%2" \
 		: "=r" (unused) \
 		: "r" (addr), \
 		  "i" (MAS_BYPASS_L1_CACHE)); \
@@ -1583,6 +1579,14 @@ do { \
 		  "i" (MAS_LOAD_SPEC)); \
 } while (0)
 
+# define E2K_PREFETCH_L1_NOSPEC(addr) \
+do { \
+	int unused; \
+	asm ("ldb %1, 0, %%empty" \
+		: "=r" (unused) \
+		: "r" (addr)); \
+} while (0)
+
 # define E2K_PREFETCH_L1_SPEC_OFFSET(addr, offset) \
 do { \
 	int unused; \
@@ -1592,49 +1596,15 @@ do { \
 		  "i" (offset), \
 		  "i" (MAS_LOAD_SPEC)); \
 } while (0)
-
-# define E2K_PREFETCH_L1_OFFSET(addr, offset) \
-do { \
-	int unused; \
-	asm ("ldb,sm %1, %2, %%empty\n" \
-		: "=r" (unused) \
-		: "r" (addr), \
-		  "i" (offset)); \
-} while (0)
-
-# define E2K_PREFETCH_L1_256(addr) \
-do { \
-	int unused; \
-	asm (	"ldb,0,sm %1, 0, %%empty\n" \
-		"ldb,2,sm %1, 64, %%empty\n" \
-		"ldb,3,sm %1, 128, %%empty\n" \
-		"ldb,5,sm %1, 192, %%empty" \
-		: "=r" (unused) \
-		: "r" (addr)); \
-} while (0)
-
-# define E2K_PREFETCH_L1(addr) \
-do { \
-	int unused; \
-	asm ("ldb,3 %1, 0, %%empty" \
-		: "=r" (unused) \
-		: "r" (addr)); \
-} while (0)
 #else
-# define E2K_PREFETCH_L2_SPEC_OFFSET(addr, offset) \
+# define E2K_PREFETCH_L2_SPEC(addr)		do { (void) (addr); } while (0)
+# define E2K_PREFETCH_L2_NOSPEC_OFFSET(addr, offset) \
 				do { (void) (addr); (void) (offset); } while (0)
-# define E2K_PREFETCH_L2_OFFSET(addr, offset) \
-				do { (void) (addr); (void) (offset); } while (0)
+# define E2K_PREFETCH_L2_NOSPEC_256(addr)	do { (void) (addr); } while (0)
+# define E2K_PREFETCH_L1_SPEC(addr)		do { (void) (addr); } while (0)
+# define E2K_PREFETCH_L1_NOSPEC(addr)		do { (void) (addr); } while (0)
 # define E2K_PREFETCH_L1_SPEC_OFFSET(addr, offset) \
 				do { (void) (addr); (void) (offset); } while (0)
-# define E2K_PREFETCH_L1_OFFSET(addr, offset) \
-				do { (void) (addr); (void) (offset); } while (0)
-# define E2K_PREFETCH_L2_SPEC(addr)		do { (void) (addr); } while (0)
-# define E2K_PREFETCH_L2_256(addr)		do { (void) (addr); } while (0)
-# define E2K_PREFETCH_L2(addr)			do { (void) (addr); } while (0)
-# define E2K_PREFETCH_L1_SPEC(addr)		do { (void) (addr); } while (0)
-# define E2K_PREFETCH_L1_256(addr)		do { (void) (addr); } while (0)
-# define E2K_PREFETCH_L1(addr)			do { (void) (addr); } while (0)
 #endif
 
 /*
@@ -1743,20 +1713,22 @@ do { \
 #define NATIVE_RECOVERY_LOAD_TO_THE_GREG_VR_ATOMIC_QP(_addr, _opc, \
 		greg_no, _vr) \
 do { \
-	u64 val; \
-	u64 __opc = (_opc); \
+	u64 tmp, __opc = (_opc); \
+	/* #133760 Use a real quadro register when repeating atomic load */ \
 	asm (	"{disp %%ctpr1, qpswitchd_sm\n" \
 		" nop 4\n" \
-		" ldrd,0 [ %[addr] + %[opc] ], %[val]\n" \
-		" ldrd,2 [ %[addr] + %[opc_8] ], %%g" #greg_no "\n" \
+		" ldrd,0 [ %[addr] + %[opc] ], %%db[0]\n" \
+		" ldrd,2 [ %[addr] + %[opc_8] ], %%db[1]\n" \
 		" cmpesb,1 %[vr], 0, %%pred19}\n" \
-		"{movts,0 %%g" #greg_no ", %[val] ? %%pred19\n" \
+		"{movts,0 %%g" #greg_no ", %%b[0] ? %%pred19\n" \
+		" movtd,1 %%db[1], %%dg" #greg_no "}\n" \
+		"{movtd,0 %%db[0], %[tmp]\n" \
 		" addd,2 %[greg], 0, %%db[0]\n" \
 		" call %%ctpr1, wbs=%#}\n" \
-		"{movtd %[val], %%dg" #greg_no "}\n" \
-		: [val] "=&r" (val) \
-		: [addr] "r" (_addr), [vr] "ir" ((u32) (_vr)), \
-		  [opc] "r" (__opc), [opc_8] "r" (__opc | 8ull), \
+		"{movtd,0 %[tmp], %%dg" #greg_no "}\n" \
+		: [tmp] "=&r" (tmp) \
+		: [opc] "r" (__opc), [opc_8] "r" (__opc | 8ull), \
+		  [addr] "r" (_addr), [vr] "ir" ((u32) (_vr)), \
 		  [greg] "i" ((u64) (greg_no)) \
 		: "call", "memory", "pred19", "g" #greg_no); \
 } while (false)
@@ -1764,36 +1736,37 @@ do { \
 #define NATIVE_RECOVERY_LOAD_TO_THE_GREG_VR_ATOMIC_QP_OR_Q(_addr, _opc, \
 		greg_no_lo, greg_no_hi, _vr, _qp_load) \
 do { \
-	u64 val; \
-	u64 __opc = (_opc); \
+	u64 tmp, __opc = (_opc); \
+	/* #133760 Use a real quadro register when repeating atomic load */ \
 	if (_qp_load) { \
 		asm (	"{disp %%ctpr1, qpswitchd_sm\n" \
 			" nop 4\n" \
-			" ldrd,0 [ %[addr] + %[opc] ], %[val]\n" \
-			" ldrd,2 [ %[addr] + %[opc_8] ], %%g" #greg_no_lo "\n" \
+			" ldrd,0 [ %[addr] + %[opc] ], %%db[0]\n" \
+			" ldrd,2 [ %[addr] + %[opc_8] ], %%db[1]\n" \
 			" cmpesb,1 %[vr], 0, %%pred19}\n" \
-			"{movts,0 %%g" #greg_no_lo ", %[val] ? %%pred19\n" \
+			"{movts,0 %%g" #greg_no_lo ", %%b[0] ? %%pred19\n" \
+			" movtd,1 %%db[1], %%dg" #greg_no_lo "}\n" \
+			"{movtd,0 %%db[0], %[tmp]\n" \
 			" addd,2 %[greg], 0, %%db[0]\n" \
 			" call %%ctpr1, wbs=%#}\n" \
-			"{movtd %[val], %%dg" #greg_no_lo "}\n" \
-			: [val] "=&r" (val) \
+			"{movtd %[tmp], %%dg" #greg_no_lo "}\n" \
+			: [tmp] "=&r" (tmp) \
 			: [addr] "r" (_addr), [vr] "ir" ((u32) (_vr)), \
 			  [opc] "r" (__opc), [opc_8] "r" (__opc | 8ull), \
 			  [greg] "i" ((u64) (greg_no_lo)) \
 			: "call", "memory", "pred19", "g" #greg_no_lo); \
 	} else { \
 		asm (	"{nop 4\n" \
-			" ldrd,0 [ %[addr] + %[opc] ], %[val]\n" \
+			" ldrd,0 [ %[addr] + %[opc] ], %%g" #greg_no_lo "\n" \
 			" ldrd,2 [ %[addr] + %[opc_8] ], %%g" #greg_no_hi "\n" \
-			" cmpesb,1 %[vr], 0, %%pred19}\n" \
-			"{nop 1\n" \
-			" movts,0 %%g" #greg_no_lo ", %[val] ? %%pred19}\n" \
-			"{movtd,0 %[val], %%dg" #greg_no_lo "}\n" \
-			: [val] "=&r" (val) \
+			" movts,1 %%g" #greg_no_lo ", %[tmp]\n" \
+			" cmpesb,4 %[vr], 0, %%pred19}\n" \
+			"{movts,0 %[tmp], %%g" #greg_no_lo " ? %%pred19}\n" \
+			: [tmp] "=&r" (tmp) \
 			: [addr] "r" (_addr), [vr] "ir" ((u32) (_vr)), \
 			  [opc] "r" (__opc), [opc_8] "r" (__opc | 8ull), \
 			  [greg] "i" ((u64) (greg_no_lo)) \
-			: "call", "memory", "pred19", "g" #greg_no_lo); \
+			: "memory", "pred19", "g" #greg_no_lo, "g" #greg_no_hi); \
 	} \
 } while (false)
 
@@ -2290,7 +2263,10 @@ do { \
 #define NATIVE_MOVE_TAGGED_DWORD_WITH_OPC_VR_ATOMIC(_from, _to, _to_hi, \
 		_vr, _opc) \
 do { \
-	u64 prev, val, val_8; \
+	u64 prev; \
+	/* #133760 Use a real quadro register when repeating atomic load */ \
+	register u64 val asm("%b[0]"); \
+	register u64 val_8 asm("%b[1]"); \
 	u64 __opc = (_opc); \
 	asm (	"{cmpesb %[vr], 0, %%pred19}\n" \
 		"{ldrd,0 [ %[from] + %[opc] ], %[val]\n" \
@@ -4629,158 +4605,104 @@ do { \
 #if !defined CONFIG_E2K_MACHINE || \
     defined CONFIG_E2K_ES2_DSP || defined CONFIG_E2K_ES2_RU || \
     (defined CONFIG_E2K_E2S && defined CONFIG_NUMA)
-
 # define WORKAROUND_WAIT_HWBUG(num) (((num) & (_st_c | _all_c | _sas)) ? \
 						((num) | _ma_c) : (num))
-# define E2K_WAIT_ST_C_SAS()		E2K_WAIT(_st_c)
-# define E2K_WAIT_ST_C_SAS_MT()		E2K_WAIT(_st_c)
-# define E2K_WAIT_LD_C_LAL()		E2K_WAIT(_ld_c)
-# define E2K_WAIT_LD_C_LAL_MT()		E2K_WAIT(_ld_c)
-# define E2K_WAIT_LD_C_LAL_SAL()	E2K_WAIT(_ld_c)
-# define E2K_WAIT_ST_C_SAS_LD_C_SAL()	E2K_WAIT(_st_c | _ld_c)
-# define E2K_WAIT_ST_C_SAS_LD_C_SAL_MT() E2K_WAIT(_st_c | _ld_c)
-
 #else
-
 # define WORKAROUND_WAIT_HWBUG(num)	num
-
-/* BUG 79245 - use .word to encode relaxed barriers */
-# define E2K_WAIT_ST_C_SAS() \
-({ \
-	int unused; \
-	_Pragma("no_asm_inline") \
-	asm NOT_VOLATILE (".word 0x00008001\n" \
-			  ".word 0x30000084\n" \
-			  : "=r" (unused) :: "memory"); \
-})
-# define E2K_WAIT_LD_C_LAL() \
-({ \
-	int unused; \
-	_Pragma("no_asm_inline") \
-	asm NOT_VOLATILE (".word 0x00008001\n" \
-			  ".word 0x30000408\n" \
-			  : "=r" (unused) :: "memory"); \
-})
-# define E2K_WAIT_ST_C_SAS_MT() \
-({ \
-	int unused; \
-	_Pragma("no_asm_inline") \
-	asm NOT_VOLATILE (".word 0x00008001\n" \
-			  ".word 0x30000884\n" \
-			  : "=r" (unused) :: "memory"); \
-})
-# define E2K_WAIT_LD_C_LAL_SAL() \
-({ \
-	int unused; \
-	_Pragma("no_asm_inline") \
-	asm NOT_VOLATILE (".word 0x00008001\n" \
-			  ".word 0x30000508\n" \
-			  : "=r" (unused) :: "memory"); \
-})
-# define E2K_WAIT_LD_C_LAL_MT() \
-({ \
-	int unused; \
-	_Pragma("no_asm_inline") \
-	asm NOT_VOLATILE (".word 0x00008001\n" \
-			  ".word 0x30000c08\n" \
-			  : "=r" (unused) :: "memory"); \
-})
-# define E2K_WAIT_ST_C_SAS_LD_C_SAL() \
-({ \
-	int unused; \
-	_Pragma("no_asm_inline") \
-	asm NOT_VOLATILE (".word 0x00008001\n" \
-			  ".word 0x3000018c\n" \
-			  : "=r" (unused) :: "memory"); \
-})
-# define E2K_WAIT_ST_C_SAS_LD_C_SAL_MT() \
-({ \
-	int unused; \
-	_Pragma("no_asm_inline") \
-	asm NOT_VOLATILE (".word 0x00008001\n" \
-			  ".word 0x3000098c\n" \
-			  : "=r" (unused) :: "memory"); \
-})
 #endif
 
-#define E2K_WAIT_V6(_num) \
-({ \
-	int unused, num = WORKAROUND_WAIT_HWBUG(_num); \
-	/* "trap=1" requires special handling, see C1_wait_trap() */ \
-	asm NOT_VOLATILE("{wait mem_mod=%[mem_mod], int=%[intr], mt=%[mt], " \
-			 "      lal=%[lal], las=%[las], sal=%[sal], sas=%[sas], " \
-			 "      ma_c=%[ma_c], fl_c=%[fl_c], ld_c = %[ld_c], " \
-			 "      st_c=%[st_c], all_e=%[all_e], all_c=%[all_c]}"\
-			 : "=r" (unused) \
-			 : [all_c] "i" (((num) & 0x1)), \
-			   [all_e] "i" (((num) & 0x2)  >> 1), \
-			   [st_c] "i" (((num) & 0x4)  >> 2), \
-			   [ld_c] "i" (((num) & 0x8)  >> 3), \
-			   [fl_c] "i" (((num) & 0x10) >> 4), \
-			   [ma_c] "i" (((num) & 0x20) >> 5), \
-			   [sas] "i" (((num) & 0x80) >> 7), \
-			   [sal] "i" (((num) & 0x100) >> 8), \
-			   [las] "i" (((num) & 0x200) >> 9), \
-			   [lal] "i" (((num) & 0x400) >> 10), \
-			   [mt] "i" (((num) & 0x800) >> 11), \
-			   [intr] "i" (((num) & 0x1000) >> 12), \
-			   [mem_mod] "i" (((num) & 0x2000) >> 13) \
-			 : "memory" ); \
-	if ((num & (_all_c | _ma_c | _lal | _las)) || \
-	    (num & _ld_c) && !(num & _sal) || \
-	    (num & _st_c) && !(num & _sas)) \
-		NATIVE_HWBUG_AFTER_LD_ACQ(); \
-})
-
-
-#define E2K_WAIT_V5(_num) \
-({ \
-	int unused, num = WORKAROUND_WAIT_HWBUG(_num); \
-	/* "trap=1" requires special handling, see C1_wait_trap() */ \
-	asm NOT_VOLATILE ("{wait sal=%[sal], sas=%[sas], ma_c=%[ma_c], " \
-			  "      fl_c=%[fl_c], ld_c=%[ld_c], st_c=%[st_c], " \
-			  "      all_e=%[all_e], all_c=%[all_c]}" \
-			  : "=r" (unused) \
-			  : [all_c] "i" (((num) & 0x1)), \
-			    [all_e] "i" (((num) & 0x2) >> 1), \
-			    [st_c] "i" (((num) & 0x4) >> 2), \
-			    [ld_c] "i" (((num) & 0x8) >> 3), \
-			    [fl_c] "i" (((num) & 0x10) >> 4), \
-			    [ma_c] "i" (((num) & 0x20) >> 5), \
-			    [sas] "i" (((num) & 0x80) >> 7), \
-			    [sal] "i" (((num) & 0x100) >> 8) \
-			  : "memory" ); \
-	if ((num & (_all_c | _ma_c)) || \
-	    (num & _ld_c) && !(num & _sal) || \
-	    (num & _st_c) && !(num & _sas)) \
-		NATIVE_HWBUG_AFTER_LD_ACQ(); \
-})
-
 #define __E2K_WAIT(_num) \
-({ \
+do { \
 	int unused, num = WORKAROUND_WAIT_HWBUG(_num); \
-	if ((_num) & ~(_st_c | _ld_c)) \
+	instr_cs1_t cs1 = { \
+		.opc = CS1_OPC_WAIT, \
+		.param = num \
+	}; \
+ \
+	/* Use "asm volatile" around tricky barriers such as _ma_c, _fl_c, etc */ \
+	if ((_num) & ~(_st_c | _ld_c | _sas | _sal | _las | _lal | _mt)) \
 		asm volatile ("" ::: "memory"); \
-	asm NOT_VOLATILE ("{wait ma_c=%6, fl_c=%5, " \
-			  "ld_c = %4, st_c=%3, all_e=%2, all_c=%1}" \
-			  : "=r" (unused) \
-			  : "i" (((num) & 0x1)), \
-			    "i" (((num) & 0x2)  >> 1), \
-			    "i" (((num) & 0x4)  >> 2), \
-			    "i" (((num) & 0x8)  >> 3), \
-			    "i" (((num) & 0x10) >> 4), \
-			    "i" (((num) & 0x20) >> 5) \
-			  : "memory" ); \
-	if ((_num) & ~(_st_c | _ld_c)) \
+ \
+	/* CPU_NO_HWBUG_SOFT_WAIT: use faster workaround for "lal" barriers */ \
+	if ((_num) == (_ld_c | _lal) || (_num) == (_ld_c | _lal | _mt)) { \
+		_Pragma("no_asm_inline") \
+		asm NOT_VOLATILE (ALTERNATIVE( \
+			/* Default version - add nop 5 */ \
+				".word 0x00008281\n" \
+				".word %[cs1]\n", \
+			/* CPU_NO_HWBUG_SOFT_WAIT version */ \
+				".word 0x00008001\n" \
+				".word %[cs1]\n", \
+			%[facility]) \
+			: "=r" (unused) \
+			: [cs1] "i" (cs1.word), \
+			  [facility] "i" (CPU_NO_HWBUG_SOFT_WAIT) \
+			: "memory"); \
+	} else { \
+		instr_cs1_t cs1_no_soft_barriers = { \
+			.opc = CS1_OPC_WAIT, \
+			.param = num & ~(_lal | _las | _sal | _sas) \
+		}; \
+		/* #79245 - use .word to encode relaxed barriers */ \
+		_Pragma("no_asm_inline") \
+		asm NOT_VOLATILE (ALTERNATIVE( \
+			/* Default version */ \
+				".word 0x00008001\n" \
+				".word %[cs1_no_soft_barriers]\n", \
+			/* CPU_NO_HWBUG_SOFT_WAIT version - use soft barriers */ \
+				".word 0x00008001\n" \
+				".word %[cs1]\n", \
+			%[facility]) \
+			: "=r" (unused) \
+			: [cs1] "i" (cs1.word), \
+			  [cs1_no_soft_barriers] "i" (cs1_no_soft_barriers.word), \
+			  [facility] "i" (CPU_NO_HWBUG_SOFT_WAIT) \
+			: "memory"); \
+	} \
+ \
+	/* Use "asm volatile" around tricky barriers such as _ma_c */ \
+	if ((_num) & ~(_st_c | _ld_c | _sas | _sal | _las | _lal | _mt)) \
 		asm volatile ("" ::: "memory"); \
-})
+} while (0)
 
 #define E2K_WAIT(num) \
-({ \
+do { \
 	__E2K_WAIT(num); \
 	if (num & (_st_c | _ld_c | _all_c | _ma_c)) \
 		NATIVE_HWBUG_AFTER_LD_ACQ(); \
-})
+} while (0)
+
+#define _mem_mod	0x2000 /* watch for modification */
+#define _int		0x1000	/* stop the conveyor untill interrupt */
+#define _mt		0x800
+#define _lal		0x400	/* load-after-load modifier for _ld_c */
+#define _las		0x200	/* load-after-store modifier for _st_c */
+#define _sal		0x100	/* store-after-load modifier for _ld_c */
+#define _sas		0x80	/* store-after-store modifier for _st_c */
+/* "trap=1" requires special handling, see C1_wait_trap() so don't
+ * define it here, as using it in E2K_WAIT() makes no sense. */
+#define _ma_c		0x20	/* stop until all memory operations complete */
+#define _fl_c		0x10	/* stop until TLB/cache flush operations complete */
+#define _ld_c		0x8	/* stop until all load operations complete */
+#define _st_c		0x4	/* stop until all store operations complete */
+#define _all_e		0x2	/* stop until prev. operations issue all exceptions */
+#define _all_c		0x1	/* stop until prev. operations complete */
+
+/*
+ * IMPORTANT NOTE!!!
+ * Do not add 'sas' and 'sal' here, as they are modifiers
+ * for st_c/ld_c which make them _less_ restrictive.
+ */
+#define	E2K_WAIT_OP_ALL_MASK	(_ma_c | _fl_c | _ld_c | _st_c | _all_c | _all_e)
+
+#define	E2K_WAIT_MA		E2K_WAIT(_ma_c)
+#define	E2K_WAIT_FLUSH		E2K_WAIT(_fl_c)
+#define	E2K_WAIT_LD		E2K_WAIT(_ld_c)
+#define	E2K_WAIT_ST		E2K_WAIT(_st_c)
+#define	E2K_WAIT_ALL_OP		E2K_WAIT(_all_c)
+#define	E2K_WAIT_ALL_EX		E2K_WAIT(_all_e)
+#define	E2K_WAIT_ALL		E2K_WAIT(E2K_WAIT_OP_ALL_MASK)
+#define	__E2K_WAIT_ALL		__E2K_WAIT(E2K_WAIT_OP_ALL_MASK)
 
 /* Wait for the load to finish before issuing
  * next memory loads/stores. */
@@ -4793,64 +4715,6 @@ do { \
 			  : "memory"); \
 	NATIVE_HWBUG_AFTER_LD_ACQ(); \
 } while (0)
-
-/*
- * CPU 'WAIT' operation fields structure
- */
-#define	E2K_WAIT_OP_MA_C_MASK	0x20	/* wait for all previous memory */
-					/* access operatons complete */
-#define	E2K_WAIT_OP_FL_C_MASK	0x10	/* wait for all previous flush */
-					/* cache operatons complete */
-#define	E2K_WAIT_OP_LD_C_MASK	0x08	/* wait for all previous load */
-					/* operatons complete */
-#define	E2K_WAIT_OP_ST_C_MASK	0x04	/* wait for all previous store */
-					/* operatons complete */
-#define	E2K_WAIT_OP_ALL_E_MASK	0x02	/* wait for all previous operatons */
-					/* issue all possible exceptions */
-#define	E2K_WAIT_OP_ALL_C_MASK	0x01	/* wait for all previous operatons */
-					/* complete */
-#define	E2K_WAIT_OP_ALL_MASK	(E2K_WAIT_OP_MA_C_MASK |	\
-				E2K_WAIT_OP_FL_C_MASK |		\
-				E2K_WAIT_OP_LD_C_MASK |		\
-				E2K_WAIT_OP_ST_C_MASK |		\
-				E2K_WAIT_OP_ALL_C_MASK |	\
-				E2K_WAIT_OP_ALL_E_MASK)
-
-#define	E2K_WAIT_MA		E2K_WAIT(E2K_WAIT_OP_MA_C_MASK)
-#define	E2K_WAIT_FLUSH		E2K_WAIT(E2K_WAIT_OP_FL_C_MASK)
-#define	E2K_WAIT_LD		E2K_WAIT(E2K_WAIT_OP_LD_C_MASK)
-#define	E2K_WAIT_ST		E2K_WAIT(E2K_WAIT_OP_ST_C_MASK)
-#define	E2K_WAIT_ALL_OP		E2K_WAIT(E2K_WAIT_OP_ALL_C_MASK)
-#define	E2K_WAIT_ALL_EX		E2K_WAIT(E2K_WAIT_OP_ALL_E_MASK)
-#define	E2K_WAIT_ALL		E2K_WAIT(E2K_WAIT_OP_ALL_MASK)
-#define	__E2K_WAIT_ALL		__E2K_WAIT(E2K_WAIT_OP_ALL_MASK)
-
-/*
- * Force strict CPU ordering.
- * And yes, this is required on UP too when we're talking
- * to devices.
- *
- * For now, "wmb()" doesn't actually do anything, as all
- * Intel CPU's follow what Intel calls a *Processor Order*,
- * in which all writes are seen in the program order even
- * outside the CPU.
- *
- */
-
-#define _mem_mod	0x2000 /* watch for modification */
-#define _int	0x1000	/* stop the conveyor untill interrupt */
-#define _mt	0x800
-#define _lal	0x400	/* load-after-load modifier for _ld_c */
-#define _las	0x200	/* load-after-store modifier for _st_c */
-#define _sal	0x100	/* store-after-load modifier for _ld_c */
-#define _sas	0x80	/* store-after-store modifier for _st_c */
-#define _trap	0x40	/* stop the conveyor untill interrupt */
-#define _ma_c	0x20
-#define _fl_c	0x10	/* stop until TLB/cache flush operations complete */
-#define _ld_c	0x8	/* stop until all load operations complete */
-#define _st_c	0x4	/* stop until store operations complete */
-#define _all_e	0x2
-#define _all_c	0x1
 
 #define E2K_FLUSHTS \
 do { \
@@ -5281,6 +5145,8 @@ do { \
 			asm ("movtd [" name "], %0" : "=r" (where))
 
 #define E2K_JUMP(func)	E2K_JUMP_WITH_ARGUMENTS(func, 0)
+
+#define	E2K_JUMP_WITH_ARG(func, arg)	E2K_JUMP_WITH_ARGUMENTS(func, 1, arg)
 
 #define E2K_JUMP_WITH_ARGUMENTS(func, num_args, ...) \
 	__E2K_JUMP_WITH_ARGUMENTS_##num_args(func, ##__VA_ARGS__)
@@ -6212,7 +6078,7 @@ do { \
 			"mas=%[mas] ? %%pred23}\n" \
 		: \
 		: [addr] "r" (_addr), [fmt] "r" (_fmt), \
-		  [ind] "r" (_ind), [mas] "r" (_mas) \
+		  [ind] "r" (_ind), [mas] "i" (_mas) \
 		: "memory", "pred20", "pred21", "pred22", "pred23", \
 		  "g" #_greg_no \
 	); \
@@ -6358,7 +6224,7 @@ do { \
 		: [data] "=&r" (_data) \
 		: [from] "r" (_from), [to] "r" (_to), \
 		  [fmt] "r" (_fmt), [ind] "r" (_ind), \
-		  [first_time] "r" (_first_time), [mas] "r" (_mas) \
+		  [first_time] "r" (_first_time), [mas] "i" (_mas) \
 		: "memory", "pred19", "pred20", "pred21", "pred22", "pred23" \
 	); \
 } while (0)
@@ -6786,250 +6652,6 @@ do { \
 		: E2K_HRET_CLOBBERS); \
 	unreachable(); \
 } while (0)
-
-
-typedef unsigned long long __e2k_syscall_arg_t;
-
-#define E2K_SYSCALL_CLOBBERS \
-		"ctpr1", "ctpr2", "ctpr3", \
-		"b[0]", "b[1]", "b[2]", "b[3]", \
-		"b[4]", "b[5]", "b[6]", "b[7]"
-
-/* Transaction operation transaction of argument type
- * __e2k_syscall_arg_t */
-#ifdef __ptr64__
-#define __E2K_SYSCAL_ARG_ADD "addd,s"
-#else
-#define __E2K_SYSCAL_ARG_ADD "adds,s"
-#endif
-
-#define __E2K_SYSCALL_0(_trap, _sys_num, _arg1) \
-({ \
-	register __e2k_syscall_arg_t __res; \
-	asm volatile ("{\n" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %[sys_num], %%b[0]\n\t" \
-		"sdisp %%ctpr1, %[trap]\n\t" \
-		"}\n" \
-		"call  %%ctpr1, wbs = %#\n\t" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %%b[0], %[res]" \
-		: [res]     "=r" (__res) \
-		: [trap]    "i"  ((int) (_trap)), \
-		  [sys_num] "ri" ((__e2k_syscall_arg_t) (_sys_num)) \
-		: E2K_SYSCALL_CLOBBERS); \
-	__res; \
-})
-
-#define __E2K_SYSCALL_1(_trap, _sys_num, _arg1) \
-({ \
-	register __e2k_syscall_arg_t __res; \
-	asm volatile ("{\n" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %[sys_num], %%b[0]\n\t" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %[arg1], %%b[1]\n\t" \
-		"sdisp %%ctpr1, %[trap]\n\t" \
-		"}\n" \
-		"call  %%ctpr1, wbs = %#\n\t" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %%b[0], %[res]" \
-		: [res]     "=r" (__res) \
-		: [trap]    "i"  ((int) (_trap)), \
-		  [sys_num] "ri" ((__e2k_syscall_arg_t) (_sys_num)), \
-		  [arg1]    "ri" ((__e2k_syscall_arg_t) (_arg1)) \
-		: E2K_SYSCALL_CLOBBERS); \
-	__res; \
-})
-
-#define __E2K_SYSCALL_2(_trap, _sys_num, _arg1, _arg2) \
-({ \
-	register __e2k_syscall_arg_t __res; \
-	asm volatile ("{\n" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %[sys_num], %%b[0]\n\t" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %[arg1], %%b[1]\n\t" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %[arg2], %%b[2]\n\t" \
-		"sdisp %%ctpr1, %[trap]\n\t" \
-		"}\n" \
-		"call  %%ctpr1, wbs = %#\n\t" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %%b[0], %[res]" \
-		: [res]     "=r" (__res) \
-		: [trap]    "i"  ((int) (_trap)), \
-		  [sys_num] "ri" ((__e2k_syscall_arg_t) (_sys_num)), \
-		  [arg1]    "ri" ((__e2k_syscall_arg_t) (_arg1)), \
-		  [arg2]    "ri" ((__e2k_syscall_arg_t) (_arg2)) \
-		: E2K_SYSCALL_CLOBBERS); \
-	__res; \
-})
-
-#define __E2K_SYSCALL_3(_trap, _sys_num, _arg1, _arg2, _arg3) \
-({ \
-	register __e2k_syscall_arg_t __res; \
-	asm volatile ("{\n" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %[sys_num], %%b[0]\n\t" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %[arg1], %%b[1]\n\t" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %[arg2], %%b[2]\n\t" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %[arg3], %%b[3]\n\t" \
-		"sdisp %%ctpr1, %[trap]\n\t" \
-		"}\n" \
-		"call  %%ctpr1, wbs = %#\n\t" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %%b[0], %[res]" \
-		: [res]     "=r" (__res) \
-		: [trap]    "i"  ((int) (_trap)), \
-		  [sys_num] "ri" ((__e2k_syscall_arg_t) (_sys_num)), \
-		  [arg1]    "ri" ((__e2k_syscall_arg_t) (_arg1)), \
-		  [arg2]    "ri" ((__e2k_syscall_arg_t) (_arg2)), \
-		  [arg3]    "ri" ((__e2k_syscall_arg_t) (_arg3)) \
-		: E2K_SYSCALL_CLOBBERS); \
-	__res; \
-})
-
-#define __E2K_SYSCALL_4(_trap, _sys_num, _arg1, _arg2, _arg3, _arg4) \
-({ \
-	register __e2k_syscall_arg_t __res; \
-	asm volatile ("{\n" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %[sys_num], %%b[0]\n\t" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %[arg1], %%b[1]\n\t" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %[arg2], %%b[2]\n\t" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %[arg3], %%b[3]\n\t" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %[arg4], %%b[4]\n\t" \
-		"sdisp %%ctpr1, %[trap]\n\t" \
-		"}\n" \
-		"call  %%ctpr1, wbs = %#\n\t" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %%b[0], %[res]" \
-		: [res]     "=r" (__res) \
-		: [trap]    "i"  ((int) (_trap)), \
-		 [sys_num] "ri" ((__e2k_syscall_arg_t) (_sys_num)), \
-		 [arg1]    "ri" ((__e2k_syscall_arg_t) (_arg1)), \
-		 [arg2]    "ri" ((__e2k_syscall_arg_t) (_arg2)), \
-		 [arg3]    "ri" ((__e2k_syscall_arg_t) (_arg3)), \
-		 [arg4]    "ri" ((__e2k_syscall_arg_t) (_arg4)) \
-		: E2K_SYSCALL_CLOBBERS); \
-	__res; \
-})
-
-#define __E2K_SYSCALL_5(_trap, _sys_num, _arg1, _arg2, _arg3, _arg4, _arg5) \
-({ \
-	register __e2k_syscall_arg_t __res; \
-	asm volatile ("{\n" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %[sys_num], %%b[0]\n\t" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %[arg1], %%b[1]\n\t" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %[arg2], %%b[2]\n\t" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %[arg3], %%b[3]\n\t" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %[arg4], %%b[4]\n\t" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %[arg5], %%b[5]\n\t" \
-		"sdisp %%ctpr1, %[trap]\n\t" \
-		"}\n" \
-		"call  %%ctpr1, wbs = %#\n\t" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %%b[0], %[res]" \
-		: [res]     "=r" (__res) \
-		: [trap]    "i"  ((int) (_trap)), \
-		  [sys_num] "ri" ((__e2k_syscall_arg_t) (_sys_num)), \
-		  [arg1]    "ri" ((__e2k_syscall_arg_t) (_arg1)), \
-		  [arg2]    "ri" ((__e2k_syscall_arg_t) (_arg2)), \
-		  [arg3]    "ri" ((__e2k_syscall_arg_t) (_arg3)), \
-		  [arg4]    "ri" ((__e2k_syscall_arg_t) (_arg4)), \
-		  [arg5]    "ri" ((__e2k_syscall_arg_t) (_arg5)) \
-		: E2K_SYSCALL_CLOBBERS); \
-	__res; \
-})
-
-#define __E2K_SYSCALL_6(_trap, _sys_num, _arg1, \
-			_arg2, _arg3, _arg4, _arg5, _arg6) \
-({ \
-	register __e2k_syscall_arg_t __res; \
-	asm volatile ("{\n" \
-		"sdisp %%ctpr1, %[trap]\n\t" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %[sys_num], %%b[0]\n\t" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %[arg1], %%b[1]\n\t" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %[arg2], %%b[2]\n\t" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %[arg3], %%b[3]\n\t" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %[arg4], %%b[4]\n\t" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %[arg5], %%b[5]\n\t" \
-		"}\n" \
-		"{\n" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %[arg6], %%b[6]\n\t" \
-		"call  %%ctpr1, wbs = %#\n\t" \
-		"}\n" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %%b[0], %[res]" \
-		: [res]     "=r" (__res) \
-		: [trap]    "i"  ((int) (_trap)), \
-		  [sys_num] "ri" ((__e2k_syscall_arg_t) (_sys_num)), \
-		  [arg1]    "ri" ((__e2k_syscall_arg_t) (_arg1)), \
-		  [arg2]    "ri" ((__e2k_syscall_arg_t) (_arg2)), \
-		  [arg3]    "ri" ((__e2k_syscall_arg_t) (_arg3)), \
-		  [arg4]    "ri" ((__e2k_syscall_arg_t) (_arg4)), \
-		  [arg5]    "ri" ((__e2k_syscall_arg_t) (_arg5)), \
-		  [arg6]    "ri" ((__e2k_syscall_arg_t) (_arg6)) \
-		: E2K_SYSCALL_CLOBBERS); \
-	__res; \
-})
-
-#define __E2K_SYSCALL_7(_trap, _sys_num, _arg1, \
-			_arg2, _arg3, _arg4, _arg5, _arg6, _arg7) \
-({ \
-	register __e2k_syscall_arg_t __res; \
-	asm volatile ("{\n" \
-		"sdisp %%ctpr1, %[trap]\n\t" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %[sys_num], %%b[0]\n\t" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %[arg1], %%b[1]\n\t" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %[arg2], %%b[2]\n\t" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %[arg3], %%b[3]\n\t" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %[arg4], %%b[4]\n\t" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %[arg5], %%b[5]\n\t" \
-		"}\n" \
-		"{\n" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %[arg6], %%b[6]\n\t" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %[arg7], %%b[7]\n\t" \
-		"call  %%ctpr1, wbs = %#\n\t" \
-		"}\n" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %%b[0], %[res]" \
-		: [res]     "=r" (__res) \
-		: [trap]    "i"  ((int) (_trap)), \
-		  [sys_num] "ri" ((__e2k_syscall_arg_t) (_sys_num)), \
-		  [arg1]    "ri" ((__e2k_syscall_arg_t) (_arg1)), \
-		  [arg2]    "ri" ((__e2k_syscall_arg_t) (_arg2)), \
-		  [arg3]    "ri" ((__e2k_syscall_arg_t) (_arg3)), \
-		  [arg4]    "ri" ((__e2k_syscall_arg_t) (_arg4)), \
-		  [arg5]    "ri" ((__e2k_syscall_arg_t) (_arg5)), \
-		  [arg6]    "ri" ((__e2k_syscall_arg_t) (_arg6)), \
-		  [arg7]    "ri" ((__e2k_syscall_arg_t) (_arg7)) \
-		: E2K_SYSCALL_CLOBBERS); \
-	__res; \
-})
-
-#define E2K_SYSCALL(trap, sys_num, num_args, args...) \
-	__E2K_SYSCALL_##num_args(trap, sys_num, args)
-
-#define ASM_CALL_8_ARGS(func_name_to_call, _arg0, _arg1, _arg2, _arg3, \
-				_arg4, _arg5, _arg6, _arg7) \
-({ \
-	register __e2k_syscall_arg_t __res; \
-	asm volatile ( \
-		"{\n\t" \
-			__E2K_SYSCAL_ARG_ADD "  0x0, %[arg0], %%b[0]\n\t" \
-			__E2K_SYSCAL_ARG_ADD "  0x0, %[arg1], %%b[1]\n\t" \
-			__E2K_SYSCAL_ARG_ADD "  0x0, %[arg2], %%b[2]\n\t" \
-			__E2K_SYSCAL_ARG_ADD "  0x0, %[arg3], %%b[3]\n\t" \
-			"disp %%ctpr1, " #func_name_to_call "\n\t" \
-		"}\n\t" \
-		"{\n\t" \
-			__E2K_SYSCAL_ARG_ADD "  0x0, %[arg4], %%b[4]\n\t" \
-			__E2K_SYSCAL_ARG_ADD "  0x0, %[arg5], %%b[5]\n\t" \
-			__E2K_SYSCAL_ARG_ADD "  0x0, %[arg6], %%b[6]\n\t" \
-			__E2K_SYSCAL_ARG_ADD "  0x0, %[arg7], %%b[7]\n\t" \
-			"call  %%ctpr1, wbs = %#\n\t" \
-		"}\n\t" \
-		__E2K_SYSCAL_ARG_ADD "  0x0, %%b[0], %[res]\n\t" \
-		:						\
-		  [res]  "=r" (__res)				\
-		:						\
-		  [arg0] "ri" ((__e2k_syscall_arg_t) (_arg0)),	\
-		  [arg1] "ri" ((__e2k_syscall_arg_t) (_arg1)),	\
-		  [arg2] "ri" ((__e2k_syscall_arg_t) (_arg2)),	\
-		  [arg3] "ri" ((__e2k_syscall_arg_t) (_arg3)),	\
-		  [arg4] "ri" ((__e2k_syscall_arg_t) (_arg4)),	\
-		  [arg5] "ri" ((__e2k_syscall_arg_t) (_arg5)),	\
-		  [arg6] "ri" ((__e2k_syscall_arg_t) (_arg6)),	\
-		  [arg7] "ri" ((__e2k_syscall_arg_t) (_arg7))	\
-		: E2K_SYSCALL_CLOBBERS);			\
-	__res;							\
-})
 
 #define __arch_this_cpu_read(_var, size) \
 ({ \

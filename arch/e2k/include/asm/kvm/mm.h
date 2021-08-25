@@ -55,7 +55,19 @@ typedef struct gmm_struct {
 } gmm_struct_t;
 
 /* same as accessor for struct mm_struct's cpu_vm_mask but for guest mm */
-#define gmm_cpumask(gmm) (&(gmm)->cpu_vm_mask)
+static inline void gmm_init_cpumask(gmm_struct_t *gmm)
+{
+	unsigned long cpu_vm_mask = (unsigned long)gmm;
+
+	cpu_vm_mask += offsetof(gmm_struct_t, cpu_vm_mask);
+	cpumask_clear((struct cpumask *)cpu_vm_mask);
+}
+
+/* Future-safe accessor for struct mm_struct's cpu_vm_mask. */
+static inline cpumask_t *gmm_cpumask(gmm_struct_t *gmm)
+{
+	return (struct cpumask *)&gmm->cpu_vm_mask;
+}
 
 typedef struct kvm_nid_table gmmid_table_t;
 
@@ -66,7 +78,10 @@ struct kvm;
 extern int kvm_guest_mm_drop(struct kvm_vcpu *vcpu, int gmmid_nr);
 extern int kvm_activate_guest_mm(struct kvm_vcpu *vcpu,
 			int active_gmmid_nr, int gmmid_nr, gpa_t u_phys_ptb);
+extern int kvm_pv_init_gmm_create(struct kvm *kvm);
 extern int kvm_guest_pv_mm_init(struct kvm *kvm);
+extern void kvm_guest_pv_mm_reset(struct kvm *kvm);
+extern void kvm_guest_pv_mm_free(struct kvm *kvm);
 extern void kvm_guest_pv_mm_destroy(struct kvm *kvm);
 
 #define	for_each_guest_mm(gmm, entry, next, gmmid_table)	\
@@ -75,6 +90,8 @@ extern void kvm_guest_pv_mm_destroy(struct kvm *kvm);
 #define gmmid_entry(ptr)	container_of(ptr, gmm_struct_t, nid)
 #define	gmmid_table_lock(gmmid_table)	\
 		nid_table_lock(gmmid_table)
+#define	gmmid_table_trylock(gmmid_table)	\
+		nid_table_trylock(gmmid_table)
 #define	gmmid_table_unlock(gmmid_table)	\
 		nid_table_unlock(gmmid_table)
 #define	gmmid_table_lock_irq(gmmid_table)	\
@@ -91,7 +108,7 @@ kvm_find_gmmid(gmmid_table_t *gmmid_table, int gmmid_nr)
 {
 	kvm_nid_t *nid;
 
-	nid = kvm_find_nid(gmmid_table, gmmid_nr, gmmid_hashfn(gmmid_nr));
+	nid = kvm_try_find_nid(gmmid_table, gmmid_nr, gmmid_hashfn(gmmid_nr));
 	if (nid == NULL)
 		return NULL;
 	return gmmid_entry(nid);

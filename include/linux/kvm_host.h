@@ -578,9 +578,6 @@ static inline int kvm_vcpu_get_idx(struct kvm_vcpu *vcpu)
 		if (tmp == vcpu)
 			return idx;
 	BUG();
-#ifdef CONFIG_MCST
-	return 0;
-#endif
 }
 
 #define kvm_for_each_memslot(memslot, slots)	\

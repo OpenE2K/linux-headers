@@ -219,6 +219,8 @@ typedef struct pt_struct {
 	pgprotval_t	priv_mask;	/* page is privileged */
 	pgprotval_t	non_exec_mask;	/* page is not executable */
 	pgprotval_t	exec_mask;	/* page is executable */
+	pgprotval_t	huge_mask;	/* page is huge */
+	pgprotval_t	protnone_mask;	/* page is with none protections */
 
 	/* mask of bits available for software */
 	pgprotval_t	sw_bit1_mask;	/* # 1 */
@@ -818,5 +820,9 @@ typedef union {
 #define	TAGGED_MEM_STORE_REC_OPC_W (LDST_WORD_FMT << LDST_REC_OPC_FMT_SHIFT)
 #define	MEM_STORE_REC_OPC_B (LDST_BYTE_FMT << LDST_REC_OPC_FMT_SHIFT)
 
+/* prefetch flag (placed at deprecated field 'rg_deprecated' */
+#define	LDST_PREFETCH_FLAG_SET(flag)	((flag) << LDST_REC_OPC_RG_SHIFT)
+#define	LDST_PREFETCH_FLAG_GET(strd)	(((strd) >> LDST_REC_OPC_RG_SHIFT) & 0x1UL)
+#define	LDST_PREFETCH_FLAG_CLEAR(strd)	((strd) & ~LDST_PREFETCH_FLAG_SET(1UL))
 
 #endif /* _E2K_MMU_TYPES_H_ */

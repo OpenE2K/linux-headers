@@ -7,7 +7,6 @@
 
 typedef struct global_regs global_regs_t;
 typedef struct kernel_gregs kernel_gregs_t;
-typedef struct host_gregs host_gregs_t;
 
 #ifndef	CONFIG_VIRTUALIZATION
 /* it is native kernel without any virtualization support */
@@ -18,10 +17,6 @@ typedef struct guest_machdep {
 	/* none any guest */
 } guest_machdep_t;
 #else	/* CONFIG_VIRTUALIZATION */
-extern void kvm_save_host_gregs_v2(struct host_gregs *gregs);
-extern void kvm_save_host_gregs_v5(struct host_gregs *gregs);
-extern void kvm_restore_host_gregs_v5(const struct host_gregs *gregs);
-
 extern void kvm_guest_save_local_gregs_v2(struct local_gregs *gregs,
 					bool is_signal);
 extern void kvm_guest_save_local_gregs_v5(struct local_gregs *gregs,

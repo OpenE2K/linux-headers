@@ -16,12 +16,11 @@
 #include <asm/kvm/switch.h>
 
 extern void kvm_clear_host_thread_info(thread_info_t *ti);
-extern gthread_info_t *create_guest_start_thread_info(struct kvm_vcpu *vcpu);
 extern int kvm_resume_vm_thread(void);
 
 extern int kvm_correct_guest_trap_return_ip(unsigned long return_ip);
 
-extern long return_pv_vcpu_syscall_fork(void);
+extern long return_pv_vcpu_syscall_fork(u64 sys_rval);
 
 /*
  * Is the CPU at guest Hardware Virtualized mode
@@ -235,16 +234,7 @@ host_exit_to_usermode_loop(struct pt_regs *regs, bool syscall, bool has_signal)
 		schedule();
 	}
 
-	if (has_signal) {
-		/*
-		 * This is guest VCPU interception emulation, but
-		 * there is (are) pending signal for host VCPU mode,
-		 * so it need switch to host VCPU mode to handle
-		 * signal and probably to kill VM
-		 */
-		WRITE_PSR_IRQ_BARRIER(AW(E2K_KERNEL_PSR_DISABLED));
-		pv_vcpu_switch_to_host_from_intc(current_thread_info());
-	} else if (likely(guest_trap_pending(current_thread_info()))) {
+	if (likely(guest_trap_pending(current_thread_info()))) {
 		/*
 		 * This is guest VCPU interception emulation and
 		 * there is (are) the guest trap(s) to handle
@@ -266,6 +256,16 @@ host_exit_to_usermode_loop(struct pt_regs *regs, bool syscall, bool has_signal)
 	}
 
 	WRITE_PSR_IRQ_BARRIER(AW(E2K_KERNEL_PSR_DISABLED));
+
+	if (has_signal) {
+		/*
+		 * This is guest VCPU interception emulation, but
+		 * there is (are) pending signal for host VCPU mode,
+		 * so it need switch to host VCPU mode to handle
+		 * signal and probably to kill VM
+		 */
+		pv_vcpu_switch_to_host_from_intc(current_thread_info());
+	}
 }
 
 #ifdef	CONFIG_SMP
@@ -355,7 +355,7 @@ host_exit_to_usermode_loop(struct pt_regs *regs, bool syscall, bool has_signal)
 #define	RESTORE_GUEST_KERNEL_GREGS_COPY(__ti, __gti, __vcpu)		\
 ({									\
 	kernel_gregs_t *k_gregs = &(__ti)->k_gregs;			\
-	kernel_gregs_t *g_gregs = &(__gti)->gu_gregs;			\
+	kernel_gregs_t *g_gregs = &(__gti)->gk_gregs;			\
 									\
 	RESTORE_GUEST_KERNEL_GREGS_COPY_FROM(k_gregs, g_gregs, true);	\
 	INIT_HOST_VCPU_STATE_GREG_COPY(__ti, __vcpu);			\

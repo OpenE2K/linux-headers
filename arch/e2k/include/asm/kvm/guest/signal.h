@@ -6,6 +6,8 @@
 #ifndef __ASSEMBLY__
 
 extern int kvm_signal_setup(struct pt_regs *regs);
+extern int kvm_longjmp_copy_user_to_kernel_hw_stacks(struct pt_regs *regs,
+						     struct pt_regs *new_regs);
 extern int kvm_complete_long_jump(struct pt_regs *regs);
 
 #ifdef	CONFIG_KVM_GUEST_KERNEL
@@ -15,6 +17,12 @@ extern int kvm_complete_long_jump(struct pt_regs *regs);
 static inline int signal_setup(struct pt_regs *regs)
 {
 	return kvm_signal_setup(regs);
+}
+
+static inline int longjmp_copy_user_to_kernel_hw_stacks(struct pt_regs *regs,
+							struct pt_regs *new_regs)
+{
+	return kvm_longjmp_copy_user_to_kernel_hw_stacks(regs, new_regs);
 }
 
 static inline int complete_long_jump(struct pt_regs *regs)

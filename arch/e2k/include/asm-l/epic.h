@@ -67,6 +67,11 @@ static inline bool read_epic_bsp(void)
 	return reg.bits.bsp_core;
 }
 
+static inline u32 epic_vector_prio(u32 vector)
+{
+	return 1 + ((vector >> 8) & 0x3);
+}
+
 extern void __init_recv setup_prepic(void);
 extern void ack_epic_irq(void);
 extern void epic_send_IPI(unsigned int dest_id, int vector);

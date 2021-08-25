@@ -125,6 +125,13 @@ extern long protected_sys_getgroups(const long		a1, /* size */
 			    const unsigned long unused5,
 			    const unsigned long unused6,
 			    const struct pt_regs  *regs);
+extern long protected_sys_setgroups(const long		a1, /* size */
+			    const unsigned long __user a2, /* list[] */
+			    const unsigned long unused3,
+			    const unsigned long unused4,
+			    const unsigned long unused5,
+			    const unsigned long unused6,
+			    const struct pt_regs  *regs);
 extern long protected_sys_ipc(const unsigned long	call,	/* a1 */
 			      const long		first,	/* a2 */
 			      const unsigned long	second,	/* a3 */
@@ -335,6 +342,13 @@ extern long protected_sys_ioctl(const int		fd,		/* a1 */
 				const unsigned long	unused5,
 				const unsigned long	unused6,
 				const struct pt_regs	*regs);
+extern long protected_sys_bpf(const int cmd,			/* a1 */
+			      const unsigned long __user attr,	/* a2 */
+			      const unsigned int size,		/* a3 */
+			      const unsigned long unused4,
+			      const unsigned long unused5,
+			      const unsigned long unused6,
+			      const struct pt_regs *regs);
 extern long protected_sys_epoll_ctl(const unsigned long epfd,	/* a1 */
 				    const unsigned long op,	/* a2 */
 				    const unsigned long fd,	/* a3 */

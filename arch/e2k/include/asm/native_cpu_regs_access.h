@@ -424,10 +424,50 @@ extern void native_write_SCLKM2_reg_value(unsigned long reg_value);
 		NATIVE_SET_SREG_CLOSED_NOEXC(dibcr, DIBCR_value, 4)
 #define	NATIVE_WRITE_DIBSR_REG_VALUE(DIBSR_value)	\
 		NATIVE_SET_SREG_CLOSED_NOEXC(dibsr, DIBSR_value, 4)
-/* 6 cycles delay guarantess that all counting
- * is stopped and %dibsr is updated accordingly. */
-#define	NATIVE_WRITE_DIMCR_REG_VALUE(DIMCR_value)	\
-		NATIVE_SET_DSREG_CLOSED_NOEXC(dimcr, DIMCR_value, 5)
+
+static inline bool is_event_pipe_frz_sensitive(int event)
+{
+	return event == 0x2e ||
+			event >= 0x30 && event <= 0x3d ||
+			event >= 0x48 && event <= 0x4a ||
+			event >= 0x58 && event <= 0x5a ||
+			event >= 0x68 && event <= 0x69;
+}
+
+static inline bool is_dimcr_pipe_frz_sensitive(e2k_dimcr_t dimcr)
+{
+	return dimcr_enabled(dimcr, 0) &&
+			is_event_pipe_frz_sensitive(AS(dimcr)[0].event) ||
+			dimcr_enabled(dimcr, 1) &&
+			is_event_pipe_frz_sensitive(AS(dimcr)[1].event);
+}
+
+#define	NATIVE_WRITE_DIMCR_REG_VALUE(DIMCR_value) \
+do { \
+	e2k_dimcr_t __new_value = { .word = (DIMCR_value) }; \
+ \
+	if (cpu_has(CPU_HWBUG_PIPELINE_FREEZE_MONITORS)) { \
+		e2k_dimcr_t __old_value = { .word = NATIVE_READ_DIMCR_REG_VALUE() }; \
+		bool __old_sensitive = is_dimcr_pipe_frz_sensitive(__old_value); \
+		bool __new_sensitive = is_dimcr_pipe_frz_sensitive(__new_value); \
+ \
+		if (__old_sensitive != __new_sensitive) { \
+			unsigned long flags; \
+ \
+			raw_all_irq_save(flags); \
+ \
+			e2k_cu_hw0_t cu_hw0 = { .word = NATIVE_READ_CU_HW0_REG_VALUE() }; \
+			cu_hw0.pipe_frz_dsbl = (__new_sensitive) ? 1 : 0; \
+			NATIVE_WRITE_CU_HW0_REG_VALUE(cu_hw0.word); \
+ \
+			raw_all_irq_restore(flags); \
+		} \
+	} \
+ \
+	/* 6 cycles delay guarantess that all counting \
+	 * is stopped and %dibsr is updated accordingly. */ \
+	NATIVE_SET_DSREG_CLOSED_NOEXC(dimcr, AW(__new_value), 5); \
+} while (0)
 #define	NATIVE_WRITE_DIBAR0_REG_VALUE(DIBAR0_value)	\
 		NATIVE_SET_DSREG_CLOSED_NOEXC(dibar0, DIBAR0_value, 4)
 #define	NATIVE_WRITE_DIBAR1_REG_VALUE(DIBAR1_value)	\

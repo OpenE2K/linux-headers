@@ -254,22 +254,6 @@
 		}							\
 	}								\
 })
-#define	RESTORE_GUEST_USER_REGS_AT_TI(thread_info, gthread_info, restore_upsr) \
-({									\
-	thread_info_t *__ti = (thread_info);				\
-	gthread_info_t *__gti = (gthread_info);				\
-	host_gregs_t *__greg_pair = &__ti->h_gregs;			\
-	global_regs_t *__gregs = &__gti->gregs;				\
-									\
-	if (test_ti_thread_flag(__ti, TIF_VIRTUALIZED_GUEST)) {		\
-		RESTORE_GUEST_KERNEL_GREGS_AT_TI(__ti, __gti, __gregs);	\
-		RESTORE_GUEST_HOST_GREGS_AT_TI(__greg_pair->g,		\
-							__gregs->g);	\
-		if (restore_upsr) {					\
-			RESTORE_GUEST_USER_UPSR_AT_TI(__ti, __gti);	\
-		}							\
-	}								\
-})
 #define	KVM_INIT_GUEST_USER_UPSR(thread_info, __upsr)			\
 ({									\
 	thread_info_t *__ti = (thread_info);				\

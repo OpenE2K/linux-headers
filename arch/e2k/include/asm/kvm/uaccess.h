@@ -136,7 +136,7 @@ extern int kvm_vcpu_copy_host_from_guest(struct kvm_vcpu *vcpu,
 
 static inline int
 fast_tagged_memory_copy_to_user(void __user *dst, const void *src,
-		size_t len, const struct pt_regs *regs,
+		size_t len, size_t *copied, const struct pt_regs *regs,
 		unsigned long strd_opcode, unsigned long ldrd_opcode,
 		int prefetch)
 {
@@ -156,7 +156,7 @@ fast_tagged_memory_copy_to_user(void __user *dst, const void *src,
 
 static inline int
 fast_tagged_memory_copy_from_user(void *dst, const void __user *src,
-		size_t len, const struct pt_regs *regs,
+		size_t len, size_t *copied, const struct pt_regs *regs,
 		unsigned long strd_opcode, unsigned long ldrd_opcode,
 		int prefetch)
 {

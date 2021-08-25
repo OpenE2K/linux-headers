@@ -3,6 +3,7 @@
 
 #include <linux/swab.h>
 
+#include <asm/alternative.h>
 #include <asm/machdep.h>
 
 #define __HAVE_ARCH_STRNLEN
@@ -58,8 +59,8 @@ static inline int _memcmp(const void *s1, const void *s2, size_t n)
 		}
 	}
 
-	E2K_PREFETCH_L2(s1);
-	E2K_PREFETCH_L2(s2);
+	E2K_PREFETCH_L1_SPEC(s1);
+	E2K_PREFETCH_L1_SPEC(s1);
 	return __memcmp(s1, s2, n);
 }
 
@@ -421,7 +422,7 @@ static inline void native_tagged_memcpy_8(void *__restrict dst,
 		else
 			E2K_TAGGED_MEMMOVE_8(dst, src);
 	} else {
-		E2K_PREFETCH_L2(src);
+		E2K_PREFETCH_L2_SPEC(src);
 
 		__tagged_memcpy_8(dst, src, n);
 	}
@@ -490,8 +491,22 @@ fast_tagged_memory_copy(void *dst, const void *src, size_t len,
 				strd_opcode, ldrd_opcode, prefetch);
 }
 static inline unsigned long
+fast_tagged_memory_copy_user(void *dst, const void *src, size_t len, size_t *copied,
+		unsigned long strd_opcode, unsigned long ldrd_opcode,
+		int prefetch)
+{
+	return native_fast_tagged_memory_copy(dst, src, len,
+				strd_opcode, ldrd_opcode, prefetch);
+}
+static inline unsigned long
 fast_tagged_memory_set(void *addr, u64 val, u64 tag,
 		size_t len, u64 strd_opcode)
+{
+	return native_fast_tagged_memory_set(addr, val, tag, len, strd_opcode);
+}
+static inline unsigned long
+fast_tagged_memory_set_user(void *addr, u64 val, u64 tag,
+		size_t len, size_t *cleared, u64 strd_opcode)
 {
 	return native_fast_tagged_memory_set(addr, val, tag, len, strd_opcode);
 }
@@ -520,7 +535,7 @@ extract_tags_32(u16 *dst, const void *src)
 /* it is native kernel without virtualization support */
 static inline int
 fast_tagged_memory_copy_to_user(void __user *dst, const void *src,
-		size_t len, const struct pt_regs *regs,
+		size_t len, size_t *copied, const struct pt_regs *regs,
 		unsigned long strd_opcode, unsigned long ldrd_opcode,
 		int prefetch)
 {
@@ -530,7 +545,7 @@ fast_tagged_memory_copy_to_user(void __user *dst, const void *src,
 
 static inline int
 fast_tagged_memory_copy_from_user(void *dst, const void __user *src,
-		size_t len, const struct pt_regs *regs,
+		size_t len, size_t *copied, const struct pt_regs *regs,
 		unsigned long strd_opcode, unsigned long ldrd_opcode,
 		int prefetch)
 {

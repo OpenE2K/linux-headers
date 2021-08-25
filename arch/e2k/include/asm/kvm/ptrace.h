@@ -53,12 +53,6 @@ typedef enum inject_caller {
 
 #ifdef __KERNEL__
 
-/* some global registers are used to support virtualization mode */
-/* (see usage and real numbers at asm/glob_regs.h) */
-typedef struct host_gregs {
-	struct e2k_greg g[HOST_KERNEL_GREGS_PAIRS_SIZE];
-} host_gregs_t;
-
 /*
  * We could check CR.pm and TIR.ip here, but that is not needed
  * because whenever CR.pm = 1 or TIR.ip < TASK_SIZE, SBR points

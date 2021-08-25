@@ -3,12 +3,8 @@
 #include <linux/percpu.h>
 #include <asm/ptrace.h>
 
-#define PERF_EVENT_INDEX_OFFSET 0
-
-#define ARCH_PERFMON_EVENT_MASK	0xffff
 #define ARCH_PERFMON_OS		(1 << 16)
 #define ARCH_PERFMON_USR	(1 << 17)
-#define ARCH_PERFMON_ENABLED	(1 << 18)
 
 DECLARE_PER_CPU(struct perf_event * [4], cpu_events);
 

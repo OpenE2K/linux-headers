@@ -48,6 +48,7 @@ print_guest_stack(struct task_struct *task,
 {
 	/* nothing to do, guest has not other guest processes */
 }
+
 static inline void
 host_ftrace_stop(void)
 {

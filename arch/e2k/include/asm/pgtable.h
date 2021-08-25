@@ -542,7 +542,7 @@ extern pgd_t *node_pgd_offset_kernel(int nid, e2k_addr_t virt_addr);
 #else	/* ! CONFIG_NUMA */
 #define node_pgd_offset_kernel(nid, virt_addr)	\
 ({						\
-	(nid);					\
+	(void) (nid);				\
 	pgd_offset_k(virt_addr);		\
 })
 #endif	/* CONFIG_NUMA */
@@ -617,7 +617,7 @@ pgd_clear(pgd_t *pgd)
 #define pte_offset_map(pmd, address) \
 ({ \
 	pte_t *__pom_pte = pte_offset_kernel((pmd), (address)); \
-	prefetchw(__pom_pte); \
+	prefetch_nospec(__pom_pte); \
 	__pom_pte; \
 })
 
@@ -805,7 +805,8 @@ static inline void pmdp_set_wrprotect(struct mm_struct *mm,
 static inline pmd_t pmdp_establish(struct vm_area_struct *vma,
 		unsigned long address, pmd_t *pmdp, pmd_t pmd)
 {
-	return __pmd(xchg_relaxed(&pmd_val(*pmdp), pmd_val(pmd)));
+	return __pmd(pt_get_and_xchg_relaxed(vma->vm_mm, address,
+					     pmd_val(pmd), (pgprot_t *)pmdp));
 }
 
 extern int pmdp_set_access_flags(struct vm_area_struct *vma,
