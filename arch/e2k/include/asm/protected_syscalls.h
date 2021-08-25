@@ -191,7 +191,7 @@ unsigned long e2k_ptr_curptr(long low, long hiw)
 }
 
 static inline
-unsigned long e2k_ptr_size(long low, long hiw, unsigned int min_size)
+unsigned int e2k_ptr_size(long low, long hiw, unsigned int min_size)
 {
 	e2k_ptr_hi_t hi;
 	unsigned int ptr_size;

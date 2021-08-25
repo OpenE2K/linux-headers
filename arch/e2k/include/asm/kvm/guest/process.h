@@ -110,8 +110,6 @@ kvm_preserve_user_hw_stacks_to_copy(e2k_stacks_t *u_stacks,
 	/* after copying and therefore are not preserve */
 }
 
-extern void kvm_get_mm_notifier(thread_info_t *ti, struct mm_struct *mm);
-
 static __always_inline void
 kvm_jump_to_ttable_entry(struct pt_regs *regs, enum restore_caller from)
 {

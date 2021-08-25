@@ -294,7 +294,6 @@ typedef struct thread_info {
  * have to worry about atomic accesses.
  */
 #define TS_DELAYED_SIG_HANDLING		0x00000001
-#define TS_KEEP_PAGES_VALID		0x00000002
 #define TS_MMAP_PRIVILEGED		0x00000004
 #define TS_MMAP_PS			0x00000008
 #define TS_MMAP_PCS			0x00000010
@@ -307,7 +306,8 @@ typedef struct thread_info {
  * and wait for interception (trap on PV mode) */
 #define	TS_HOST_AT_VCPU_MODE		0x00001000
 
-#define	THREAD_SIZE	KERNEL_STACKS_SIZE
+#define	THREAD_SIZE		KERNEL_STACKS_SIZE
+#define THREAD_SIZE_ORDER	order_base_2(KERNEL_STACKS_SIZE / PAGE_SIZE)
 
 #ifndef __ASSEMBLY__
 

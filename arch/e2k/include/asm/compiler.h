@@ -39,25 +39,29 @@
 #define barrier() \
 do { \
 	int unused; \
-	__asm__ NOT_VOLATILE("" : "=r" (unused) : : "memory", PREEMPTION_CLOBBERS);\
+	/* TODO bug 126238 - insert additional NOP until fixed */ \
+	__asm__ NOT_VOLATILE("{nop}" : "=r" (unused) : : "memory", PREEMPTION_CLOBBERS);\
 } while (0)
 
 /* See comment before PREEMPTION_CLOBBERS */
 #define barrier_preemption() \
 do { \
 	int unused; \
-	__asm__ NOT_VOLATILE("" : "=r" (unused) : : PREEMPTION_CLOBBERS);\
+	/* TODO bug 126238 - insert additional NOP until fixed */ \
+	__asm__ NOT_VOLATILE("{nop}" : "=r" (unused) : : PREEMPTION_CLOBBERS);\
 } while (0)
 
 #define barrier_data(ptr) \
 do { \
-	__asm__ NOT_VOLATILE("" : : "r"(ptr) : "memory", PREEMPTION_CLOBBERS); \
+	/* TODO bug 126238 - insert additional NOP until fixed */ \
+	__asm__ NOT_VOLATILE("{nop}" : : "r"(ptr) : "memory", PREEMPTION_CLOBBERS); \
 } while (0)
 
 #define RELOC_HIDE(ptr, off)						\
 ({									\
 	unsigned long __ptr;						\
-	__asm__ ("" : "=r"(__ptr) : "0"(ptr));				\
+	/* TODO bug 126238 - insert additional NOP until fixed */ \
+	__asm__ ("{nop}" : "=r"(__ptr) : "0"(ptr));			\
 	(typeof(ptr)) (__ptr + (off));					\
 })
 

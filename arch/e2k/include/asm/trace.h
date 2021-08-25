@@ -295,6 +295,64 @@ TRACE_EVENT(
 		)
 );
 
+/* How many last IPs are saved in hardware TIR_lo trace for debugging */
+#define TIR_HW_TRACE_LENGTH 512
+/* How many IPs to save to ring buffer in one event. Limited because:
+ * 1) It is assumed by ring buffer internals that events are small.
+ * 2) When dumping events with [ftrace_dump_on_oops] we are limited
+ *    by printk() which outputs ~1000 symbols (LOG_LINE_MAX) at maximum. */
+#define TIR_TRACE_LENGTH 16
+#define TIR_TRACE_PARTS 32
+
+/* Output last IPs executed before a trap _without_
+ * regions that executed with frozen TIRs (i.e.
+ * without trap entry up to UNFREEZE_TIRs() call). */
+TRACE_EVENT(
+	tir_ip_trace,
+
+	TP_PROTO(int part),
+
+	TP_ARGS(part),
+
+	TP_STRUCT__entry(
+		__field(int,	part)
+		__array(void *, ip,	TIR_TRACE_LENGTH)
+	),
+
+	TP_fast_assign(
+		int i;
+
+		BUILD_BUG_ON(TIR_TRACE_PARTS * TIR_TRACE_LENGTH != TIR_HW_TRACE_LENGTH);
+		BUG_ON(part < 1 || part > TIR_TRACE_PARTS);
+		__entry->part = part;
+
+		for (i = 0; i < TIR_TRACE_LENGTH; i++) {
+			e2k_tir_lo_t tir_lo;
+
+			/* Read additional debug TIRs */
+			NATIVE_READ_TIR_HI_REG();
+			tir_lo = NATIVE_READ_TIR_LO_REG();
+
+			__entry->ip[i] = (void *) tir_lo.TIR_lo_ip;
+		}
+
+		/* For TP_printk below */
+		BUILD_BUG_ON(TIR_TRACE_LENGTH != 16);
+	),
+
+	TP_printk("last %d IPs (part %d/%d):\n"
+		"  %pS %pS %pS %pS\n"
+		"  %pS %pS %pS %pS\n"
+		"  %pS %pS %pS %pS\n"
+		"  %pS %pS %pS %pS\n",
+		TIR_TRACE_LENGTH * TIR_TRACE_PARTS, __entry->part, TIR_TRACE_PARTS,
+		__entry->ip[0], __entry->ip[1], __entry->ip[2], __entry->ip[3],
+		__entry->ip[4], __entry->ip[5], __entry->ip[6], __entry->ip[7],
+		__entry->ip[8], __entry->ip[9], __entry->ip[10], __entry->ip[11],
+		__entry->ip[12], __entry->ip[13], __entry->ip[14], __entry->ip[15]
+		)
+);
+
 
 #endif /* _TRACE_E2K_H */
 

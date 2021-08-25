@@ -228,7 +228,7 @@ static inline void *_memcpy(void *__restrict dst,
 			*(u8 *) (dst + (n & ~0x1UL)) =
 					*(u8 *) (src + (n & ~0x1UL));
 	} else {
-		E2K_PREFETCH_L2(src);
+		E2K_PREFETCH_L2_SPEC(src);
 		__memcpy(dst, src, n);
 	}
 

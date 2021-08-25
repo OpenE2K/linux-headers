@@ -1080,7 +1080,7 @@ static inline void
 NATIVE_SAVE_TASK_REGS_TO_SWITCH(struct task_struct *task)
 {
 #ifdef CONFIG_VIRTUALIZATION
-	const int task_is_binco = TASK_IS_BINCO(task) || task_thread_info(task)->vcpu;
+	const int task_is_binco = TASK_IS_BINCO(task) || task_thread_info(task)->virt_machine;
 #else
 	const int task_is_binco = TASK_IS_BINCO(task);
 #endif
@@ -1170,7 +1170,7 @@ NATIVE_RESTORE_TASK_REGS_TO_SWITCH(struct task_struct *task,
 	u64 pcsp_hi = AS_WORD(sw_regs->pcsp_hi);
 	e2k_mem_crs_t crs = sw_regs->crs;
 #ifdef CONFIG_VIRTUALIZATION
-	const int task_is_binco = TASK_IS_BINCO(task) || ti->vcpu;
+	const int task_is_binco = TASK_IS_BINCO(task) || ti->virt_machine;
 #else
 	const int task_is_binco = TASK_IS_BINCO(task);
 #endif
@@ -1271,12 +1271,9 @@ NATIVE_SWITCH_TO_KERNEL_STACK(e2k_addr_t ps_base, e2k_size_t ps_size,
 	} while(GET_NR_TIRS(TIR_hi));					\
 	TIRs_num = nr_TIRs;						\
 									\
-	/* un-freeze the TIR's LIFO */					\
-	UNFREEZE_TIRs(TIR_lo);						\
-									\
 	all_interrupts & (exc_all_mask | aau_exc_mask);			\
 })
-#define UNFREEZE_TIRs(TIR_lo)	NATIVE_WRITE_TIR_LO_REG_VALUE(TIR_lo)
+#define UNFREEZE_TIRs()	NATIVE_WRITE_TIR_LO_REG_VALUE(0)
 #define SAVE_SBBP(sbbp) \
 do { \
 	int i; \

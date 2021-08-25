@@ -11,6 +11,7 @@
 #include <asm/regs_state.h>
 #include <asm/kvm/cpu_hv_regs_access.h>
 #include <asm/kvm/mmu_hv_regs_access.h>
+#include <asm/pgd.h>
 
 #define	DEBUG_UPSR_FP_DISABLE
 
@@ -743,6 +744,20 @@ pv_vcpu_switch_guest_host_context(struct kvm_vcpu *vcpu,
 {
 	pv_vcpu_save_host_context(vcpu, cur_gti);
 	pv_vcpu_restore_host_context(vcpu, next_gti);
+}
+
+static inline void
+pv_vcpu_switch_kernel_pgd_range(struct kvm_vcpu *vcpu, int cpu)
+{
+	hpa_t vcpu_root;
+
+	if (is_sep_virt_spaces(vcpu)) {
+		vcpu_root = kvm_get_space_type_spt_os_root(vcpu);
+	} else {
+		vcpu_root = kvm_get_space_type_spt_u_root(vcpu);
+	}
+
+	copy_kernel_pgd_range(__va(vcpu_root), the_cpu_pg_dir(cpu));
 }
 
 static inline void pv_vcpu_switch_host_context(struct kvm_vcpu *vcpu)

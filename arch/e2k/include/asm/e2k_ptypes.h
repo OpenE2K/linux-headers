@@ -249,7 +249,7 @@ typedef union {	/* Common array pointer */
 static inline e2k_ptr_t MAKE_AP(u64 base, u64 len)
 {
 	e2k_ptr_t ptr = {{0}};
-	AW(ptr).lo = 0L | ((base & (E2K_VA_SIZE -1)) |
+	AW(ptr).lo = 0L | ((base & E2K_VA_MASK) |
 		((u64)E2K_AP_ITAG << 61) |
 		((u64)RW_ENABLE << 59));
 	AW(ptr).hi = 0L | ((len & 0xFFFFFFFF) << 32);

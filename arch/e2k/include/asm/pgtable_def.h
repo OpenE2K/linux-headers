@@ -23,6 +23,17 @@
 #include <asm/pgtable-v6.h>
 #include <asm/p2v/boot_v2p.h>
 
+#define TRACE_PT_UPDATES 0
+#if TRACE_PT_UPDATES
+# define trace_pt_update(...) \
+do { \
+	if (system_state == SYSTEM_RUNNING) \
+		trace_printk(__VA_ARGS__); \
+} while (0)
+#else
+# define trace_pt_update(...)
+#endif
+
 #ifndef __ASSEMBLY__
 
 /* max. number of physical address bits (architected) */
@@ -1076,6 +1087,7 @@ static inline int has_transparent_hugepage(void)
 				UNI_PAGE_PRESENT | UNI_PAGE_PROTNONE)))
 #define pmd_mknot_present_valid(pmd) (__pmd(_PAGE_CLEAR(pmd_val(pmd), \
 		 UNI_PAGE_PRESENT | UNI_PAGE_PROTNONE | UNI_PAGE_VALID)))
+#define pmd_mknotvalid(pmd)	(__pmd(_PAGE_CLEAR_VALID(pmd_val(pmd))))
 #define pmd_mkold(pmd)		(__pmd(_PAGE_CLEAR_ACCESSED(pmd_val(pmd))))
 #define pmd_mkyoung(pmd)	(__pmd(_PAGE_SET_ACCESSED(pmd_val(pmd))))
 #define pmd_mkclean(pmd)	(__pmd(_PAGE_CLEAR_DIRTY(pmd_val(pmd))))
@@ -1144,6 +1156,7 @@ static inline int pud_bad(pud_t pud)
 #define pud_mknotpresent(pud)	(__pud(_PAGE_CLEAR_PRESENT(pud_val(pud))))
 #define pud_mknot_present_valid(pud) (__pud(_PAGE_CLEAR(pud_val(pud), \
 					    UNI_PAGE_PRESENT | UNI_PAGE_VALID)))
+#define pud_mknotvalid(pud)	(__pud(_PAGE_CLEAR_VALID(pud_val(pud))))
 static inline pud_t pud_mk_wb(pud_t pud)
 {
 	if (is_mt_external(_PAGE_GET_MEM_TYPE(pud_val(pud))))
@@ -1173,6 +1186,7 @@ static inline pud_t pud_mk_uc(pud_t pud)
 #endif
 #define pgd_none_full(pgd)	(!pgd_val(pgd))
 #define pgd_valid(pgd)		_PAGE_TEST_VALID(pgd_val(pgd))
+#define pgd_mknotvalid(pgd)	(__pgd(_PAGE_CLEAR_VALID(pgd_val(pgd))))
 
 static inline int pgd_bad(pgd_t pgd)
 {
