@@ -177,7 +177,7 @@ static inline void BOOT_KVM_WRITE_MMU_PID_REG(mmu_reg_t reg_val)
 		/* all hardware MMU registers, but it is not so now, */
 		/* for example PT roots and context registers are controled */
 		/* by hypervisor as for paravirtualized kernels */
-		NATIVE_FLUSH_TLB_ALL(_flush_op_tlb_all);
+		NATIVE_FLUSH_TLB_ALL(flush_op_tlb_all);
 	}
 }
 static inline unsigned long BOOT_KVM_READ_MMU_PID_REG(void)
@@ -246,11 +246,11 @@ static inline void
 KVM_FLUSH_TLB_ENTRY(flush_op_t flush_op, flush_addr_t flush_addr)
 {
 	if (unlikely(flush_addr_get_pid(flush_addr) == E2K_KERNEL_CONTEXT)) {
-		pr_warn("%s(): CPU #%d try to flush %s addr 0x%lx pid 0x%03lx\n",
+		pr_warn("%s(): CPU #%d try to flush %s addr 0x%llx pid 0x%03llx\n",
 			__func__, smp_processor_id(),
-			(flush_op_get_type(flush_op) == flush_op_tlb_page_sys) ?
+			(flush_op_get_type(flush_op) == FLUSH_TLB_PAGE_OP) ?
 				"TLB page" : "???",
-			flush_addr_get_va(flush_addr),
+			FLUSH_VADDR_TO_VA(flush_addr),
 			flush_addr_get_pid(flush_addr));
 	}
 }

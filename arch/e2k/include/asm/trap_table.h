@@ -156,29 +156,30 @@ extern SYS_RET_TYPE notrace handle_sys_call(system_call_func sys_call,
 			long arg1, long arg2, long arg3, long arg4,
 			long arg5, long arg6, struct pt_regs *regs);
 
+extern void notrace handle_guest_fast_sys_call(void);
+
 extern const system_call_func sys_call_table[NR_syscalls];
 extern const system_call_func sys_call_table_32[NR_syscalls];
 extern const protected_system_call_func sys_call_table_entry8[NR_syscalls];
 extern const system_call_func sys_protcall_table[NR_syscalls];
 extern const system_call_func sys_call_table_deprecated[NR_syscalls];
 
-#ifndef	CONFIG_CPU_HAS_FILL_INSTRUCTION
 #define	native_restore_some_values_after_fill(__regs, __from, __return_to_user) \
 do { \
-	__regs = current_thread_info()->pt_regs; \
-	if (!__builtin_constant_p(from)) \
-		__from = current->thread.fill.from; \
-	__return_to_user = current->thread.fill.return_to_user; \
+	if (!cpu_has(CPU_FEAT_FILLC) || !cpu_has(CPU_FEAT_FILLR)) { \
+		__regs = current_thread_info()->pt_regs; \
+		if (!__builtin_constant_p(from)) \
+			__from = current->thread.fill.from; \
+		__return_to_user = current->thread.fill.return_to_user; \
+	} \
 } while (false)
-#else	/* CONFIG_CPU_HAS_FILL_INSTRUCTION */
-#define	native_restore_some_values_after_fill(__regs, __from, __return_to_user)
-#endif	/* !CONFIG_CPU_HAS_FILL_INSTRUCTION */
 
 #if !defined(CONFIG_PARAVIRT_GUEST) && !defined(CONFIG_KVM_GUEST_KERNEL)
 /* it is native kernel without any virtualization */
 /* or it is host kernel with virtualization support */
 
-#define	FILL_HARDWARE_STACKS()	NATIVE_FILL_HARDWARE_STACKS()
+#define	FILL_HARDWARE_STACKS__HW()	NATIVE_FILL_HARDWARE_STACKS__HW()
+#define	FILL_HARDWARE_STACKS__SW()	NATIVE_FILL_HARDWARE_STACKS__SW()
 
 static inline void clear_fork_child_pt_regs(struct pt_regs *childregs)
 {
@@ -256,7 +257,7 @@ is_kernel_data_stack_bounds(bool on_kernel, e2k_usd_lo_t usd_lo)
 
 #define	GCURTASK	DO_GET_GREG_MEMONIC(CURRENT_TASK_GREG)
 #define	GCPUOFFSET	DO_GET_GREG_MEMONIC(MY_CPU_OFFSET_GREG)
-#define	GCPUID		DO_GET_GREG_MEMONIC(SMP_CPU_ID_GREG)
+#define	GCPUID_PREEMPT	DO_GET_GREG_MEMONIC(SMP_CPU_ID_GREG)
 /* Macroses for virtualization support on assembler */
 #define	GVCPUSTATE	DO_GET_GREG_MEMONIC(GUEST_VCPU_STATE_GREG)
 

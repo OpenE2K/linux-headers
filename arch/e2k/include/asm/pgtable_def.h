@@ -272,27 +272,27 @@ mmu_clear_pte_val_flags(pteval_t pte_val, const uni_pteval_t uni_flags,
 	else
 		return clear_pte_val_v2_flags(pte_val, uni_flags);
 }
-static inline pteval_t
+static __must_check inline pteval_t
 fill_pte_val_flags(const uni_pteval_t uni_flags)
 {
 	return mmu_fill_pte_val_flags(uni_flags, MMU_IS_PT_V6());
 }
-static inline pteval_t
+static __must_check inline pteval_t
 get_pte_val_flags(pteval_t pte_val, const uni_pteval_t uni_flags)
 {
 	return mmu_get_pte_val_flags(pte_val, uni_flags, MMU_IS_PT_V6());
 }
-static inline bool
+static __must_check inline bool
 test_pte_val_flags(pteval_t pte_val, const uni_pteval_t uni_flags)
 {
 	return mmu_test_pte_val_flags(pte_val, uni_flags, MMU_IS_PT_V6());
 }
-static inline pteval_t
+static __must_check inline pteval_t
 set_pte_val_flags(pteval_t pte_val, const uni_pteval_t uni_flags)
 {
 	return mmu_set_pte_val_flags(pte_val, uni_flags, MMU_IS_PT_V6());
 }
-static inline pteval_t
+static __must_check inline pteval_t
 clear_pte_val_flags(pteval_t pte_val, const uni_pteval_t uni_flags)
 {
 	return mmu_clear_pte_val_flags(pte_val, uni_flags, MMU_IS_PT_V6());

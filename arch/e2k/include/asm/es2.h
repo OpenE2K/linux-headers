@@ -22,9 +22,6 @@ extern void setup_APIC_vector_handler(int vector,
 extern void eldsp_interrupt(struct pt_regs *regs);
 #endif
 
-#define	ES2_CPU_VENDOR			"Elbrus-MCST"
-#define	ES2_CPU_FAMILY			4
-
 #define	ES2_NR_NODE_CPUS		2
 #define	ES2_MAX_NR_NODE_CPUS		4
 

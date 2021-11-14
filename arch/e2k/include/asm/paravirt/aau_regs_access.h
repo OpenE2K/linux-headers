@@ -370,7 +370,7 @@ pv_read_aaldm_reg(e2k_aaldm_t *aaldm)
 		kvm_read_aaldm_reg(aaldm);
 }
 static inline void
-pv_write_aaldm_reg(e2k_aaldm_t *aaldm)
+pv_write_aaldm_reg(e2k_aaldm_t aaldm)
 {
 	if (!paravirt_enabled())
 		native_write_aaldm_reg(aaldm);
@@ -402,7 +402,7 @@ pv_read_aaldv_reg(e2k_aaldv_t *aaldv)
 		kvm_read_aaldv_reg(aaldv);
 }
 static inline void
-pv_write_aaldv_reg(e2k_aaldv_t *aaldv)
+pv_write_aaldv_reg(e2k_aaldv_t aaldv)
 {
 	if (!paravirt_enabled())
 		native_write_aaldv_reg(aaldv);
@@ -491,9 +491,9 @@ read_aaldm_reg(e2k_aaldm_t *aaldm)
 	pv_read_aaldm_reg_value(&aaldm->lo, &aaldm->hi);
 }
 static inline void
-write_aaldm_reg(e2k_aaldm_t *aaldm)
+write_aaldm_reg(e2k_aaldm_t aaldm)
 {
-	pv_write_aaldm_reg_value(aaldm->lo, aaldm->hi);
+	pv_write_aaldm_reg_value(aaldm.lo, aaldm.hi);
 }
 static inline void
 read_aaldv_reg(e2k_aaldv_t *aaldv)
@@ -501,9 +501,9 @@ read_aaldv_reg(e2k_aaldv_t *aaldv)
 	pv_read_aaldv_reg_value(&aaldv->lo, &aaldv->hi);
 }
 static inline void
-write_aaldv_reg(e2k_aaldv_t *aaldv)
+write_aaldv_reg(e2k_aaldv_t aaldv)
 {
-	pv_write_aaldm_reg_value(aaldv->lo, aaldv->hi);
+	pv_write_aaldm_reg_value(aaldv.lo, aaldv.hi);
 }
 
 #endif	/* CONFIG_PARAVIRT_GUEST */

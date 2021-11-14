@@ -280,12 +280,9 @@ static __always_inline s64 get_ps_copy_size(u64 cur_window_q, s64 u_pshtp_size)
 	return u_pshtp_size - (E2K_MAXSR - cur_window_q) * EXT_4_NR_SZ;
 }
 
-#ifdef CONFIG_CPU_HAS_FILL_INSTRUCTION
-# define E2K_CF_MAX_FILL (E2K_CF_MAX_FILL_FILLC_q * 0x10)
-#else
 extern int cf_max_fill_return;
-# define E2K_CF_MAX_FILL cf_max_fill_return
-#endif
+#define E2K_CF_MAX_FILL (cpu_has(CPU_FEAT_FILLC) ? \
+	(E2K_CF_MAX_FILL_FILLC_q * 0x10) : cf_max_fill_return)
 
 static __always_inline s64 get_pcs_copy_size(s64 u_pcshtp_size)
 {

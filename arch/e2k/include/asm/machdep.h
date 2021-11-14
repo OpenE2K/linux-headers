@@ -6,64 +6,12 @@
 
 #include <uapi/asm/iset_ver.h>
 
-#include <asm/sections.h>
 #include <asm/aau_regs_types.h>
+#include <asm/cpu_features.h>
+#include <asm/sections.h>
 #include <asm/mmu_types.h>
-#include <asm/mlt.h>
 
 #ifdef __KERNEL__
-
-enum {
-	/* Hardware bugs */
-	CPU_HWBUG_LARGE_PAGES,
-	CPU_HWBUG_LAPIC_TIMER,
-	CPU_HWBUG_PIO_READS,
-	CPU_HWBUG_ATOMIC,
-	CPU_HWBUG_CLW,
-	CPU_HWBUG_PAGE_A,
-	CPU_HWBUG_SPURIOUS_EXC_ILL_INSTR_ADDR,
-	CPU_HWBUG_UNALIGNED_LOADS,
-	CPU_HWBUG_CANNOT_DO_DMA_IN_NEIGHBOUR_NODE,
-	CPU_HWBUG_DMA_AT_APIC_ADDR,
-	CPU_HWBUG_KERNEL_DATA_MONITOR,
-	CPU_HWBUG_WRITE_MEMORY_BARRIER,
-	CPU_HWBUG_BAD_RESET,
-	CPU_HWBUG_BREAKPOINT_INSTR,
-	CPU_HWBUG_E8C_WATCHDOG,
-	CPU_HWBUG_IOMMU,
-	CPU_HWBUG_WC_DAM,
-	CPU_HWBUG_TRAP_CELLAR_S_F,
-	CPU_HWBUG_SS,
-	CPU_HWBUG_AAU_AALDV,
-	CPU_HWBUG_LEVEL_EOI,
-	CPU_HWBUG_FALSE_SS,
-	CPU_HWBUG_SPURIOUS_EXC_DATA_DEBUG,
-	CPU_HWBUG_TLB_FLUSH_L1D,
-	CPU_HWBUG_GUEST_ASYNC_PM,
-	CPU_HWBUG_E16C_SLEEP,
-	CPU_HWBUG_L1I_STOPS_WORKING,
-	CPU_HWBUG_CLW_STALE_L1_ENTRY,
-	CPU_HWBUG_PIPELINE_FREEZE_MONITORS,
-	CPU_HWBUG_C3_WAIT_MA_C,
-	CPU_HWBUG_VIRT_SCLKM3_INTC,
-	CPU_HWBUG_VIRT_PUSD_PSL,
-	CPU_HWBUG_USD_ALIGNMENT,
-	CPU_HWBUG_VIRT_PSIZE_INTERCEPTION,
-	CPU_NO_HWBUG_SOFT_WAIT,
-
-	/* Features, not bugs */
-	CPU_FEAT_WC_PCI_PREFETCH,
-	CPU_FEAT_FLUSH_DC_IC,
-	CPU_FEAT_EPIC,
-	CPU_FEAT_TRAP_V5,
-	CPU_FEAT_TRAP_V6,
-	CPU_FEAT_QPREG,
-	CPU_FEAT_ISET_V3,
-	CPU_FEAT_ISET_V5,
-	CPU_FEAT_ISET_V6,
-
-	NR_CPU_FEATURES
-};
 
 struct cpuinfo_e2k;
 struct pt_regs;
@@ -72,9 +20,10 @@ struct global_regs;
 struct kernel_gregs;
 struct local_gregs;
 struct e2k_aau_context;
+struct e2k_mlt;
 struct kvm_vcpu_arch;
-struct e2k_dimtp;
 struct thread_info;
+union e2k_dimtp;
 
 #include <asm/kvm/machdep.h>	/* virtualization support */
 
@@ -139,17 +88,17 @@ typedef struct machdep {
 	void (*restore_gregs_on_mask)(struct global_regs *, bool dirty_bgr,
 					unsigned long not_restore_gregs_mask);
 
-	void (*save_dimtp)(e2k_dimtp_t *);
-	void (*restore_dimtp)(const e2k_dimtp_t *);
+	void (*save_dimtp)(union e2k_dimtp *);
+	void (*restore_dimtp)(const union e2k_dimtp *);
 
 	void (*save_kvm_context)(struct kvm_vcpu_arch *);
 	void (*restore_kvm_context)(const struct kvm_vcpu_arch *);
 
 	void (*calculate_aau_aaldis_aaldas)(const struct pt_regs *regs,
-		      struct thread_info *ti, struct e2k_aau_context *context);
+			e2k_aalda_t *aaldas, struct e2k_aau_context *context);
 	void (*do_aau_fault)(int aa_field, struct pt_regs *regs);
 	void (*save_aaldi)(u64 *aaldis);
-	void (*get_aau_context)(struct e2k_aau_context *);
+	void (*get_aau_context)(struct e2k_aau_context *, e2k_aasr_t);
 
 	unsigned long	(*rrd)(int reg);
 	void		(*rwd)(int reg, unsigned long value);
@@ -161,7 +110,7 @@ typedef struct machdep {
 
 #ifdef CONFIG_MLT_STORAGE
 	void		(*invalidate_MLT)(void);
-	void		(*get_and_invalidate_MLT_context)(e2k_mlt_t *mlt_state);
+	void		(*get_and_invalidate_MLT_context)(struct e2k_mlt *mlt_state);
 #endif
 
 	void		(*flushts)(void);
@@ -196,7 +145,7 @@ typedef struct machdep {
  * being executed on.
  */
 typedef void (*cpuhas_initcall_t)(int cpu, int revision, int iset_ver,
-		int guest_cpu, struct machdep *machine);
+		int guest_cpu, bool is_hardware_guest, struct machdep *machine);
 extern cpuhas_initcall_t __cpuhas_initcalls[], __cpuhas_initcalls_end[];
 
 /*
@@ -217,7 +166,7 @@ extern cpuhas_initcall_t __cpuhas_initcalls[], __cpuhas_initcalls_end[];
 	__init \
 	static void feat##_initializer(const int cpu, const int revision, \
 			const int iset_ver, const int guest_cpu, \
-			struct machdep *const machine) { \
+			bool is_hardware_guest, struct machdep *const machine) { \
 		bool is_static = (_is_static); \
 		if (is_static && (static_cond) || !is_static && (dynamic_cond)) \
 			set_bit(feat, (machine)->cpu_features); \
@@ -465,13 +414,17 @@ CPUHAS(CPU_HWBUG_CLW_STALE_L1_ENTRY,
 		cpu == IDR_E2S_MDL || cpu == IDR_E8C_MDL || cpu == IDR_E8C2_MDL ||
 			cpu == IDR_E16C_MDL && revision == 0);
 /* #125405 - CPU pipeline freeze feature conflicts with performance monitoring.
- * Workaround - disable pipeline freeze when monitoring is enabled. */
+ * Workaround - disable pipeline freeze when monitoring is enabled.
+ *
+ * Note (#132311): disable workaround on e16c.rev0/e2c3.rev0 since it conflicts
+ * with #134929 workaround. */
 CPUHAS(CPU_HWBUG_PIPELINE_FREEZE_MONITORS,
-		IS_ENABLED(CONFIG_E2K_MACHINE),
-		IS_ENABLED(CONFIG_CPU_E8C2) || IS_ENABLED(CONFIG_CPU_E16C) ||
-			IS_ENABLED(CONFIG_CPU_E2C3) || IS_ENABLED(CONFIG_CPU_E12C),
-		cpu == IDR_E8C2_MDL || cpu == IDR_E16C_MDL ||
-			cpu == IDR_E2C3_MDL || cpu == IDR_E12C_MDL);
+		IS_ENABLED(CONFIG_E2K_MACHINE) && !IS_ENABLED(CONFIG_CPU_E16C) &&
+			!IS_ENABLED(CONFIG_CPU_E2C3),
+		IS_ENABLED(CONFIG_CPU_E8C2) || IS_ENABLED(CONFIG_CPU_E12C),
+		cpu == IDR_E8C2_MDL || cpu == IDR_E12C_MDL ||
+			cpu == IDR_E16C_MDL && revision > 0 ||
+			cpu == IDR_E2C3_MDL && revision > 0);
 /* #126587 - "wait ma_c=1" does not wait for all L2$ writebacks to complete
  * when disabling CPU core with "wait trap=1" algorithm.
  * Workaround - manually insert 66 NOPs before "wait trap=1" */
@@ -518,12 +471,31 @@ CPUHAS(CPU_HWBUG_VIRT_PSIZE_INTERCEPTION,
 		cpu == IDR_E2C3_MDL && revision == 0);
 
 /* #130066, #134351 - L1/L2 do not respect "lal"/"las"/"sas"/"st_rel" barriers.
- * Workaround - do not use "las"/"sas"/"st_rel", and add 5 nops after "lal". */
+ * Workaround - do not use "las"/"sas"/"st_rel", and add 5 nops after "lal".
+ * #133605 - "lal"/"las"/"sas"/"sal" barriers do not work in certain conditions.
+ * Workaround - add {nop} before them.
+ *
+ * Note that #133605 workaround is split into two parts:
+ * CPU_NO_HWBUG_SOFT_WAIT - for e16c/e2c3
+ * CPU_HWBUG_SOFT_WAIT_E8C2 - for e8c2
+ * This is done because it is very convenient to merge #130066, #134351
+ * and #133605 bugs workarounds together for e16c/e2c3. */
 CPUHAS(CPU_NO_HWBUG_SOFT_WAIT,
 		!IS_ENABLED(CONFIG_CPU_E16C) && !IS_ENABLED(CONFIG_CPU_E2C3),
 		true,
 		!(cpu == IDR_E16C_MDL && revision == 0 ||
 		  cpu == IDR_E2C3_MDL && revision == 0));
+CPUHAS(CPU_HWBUG_SOFT_WAIT_E8C2,
+		IS_ENABLED(CONFIG_E2K_MACHINE),
+		IS_ENABLED(CONFIG_CPU_E8C2),
+		cpu == IDR_E8C2_MDL);
+
+/* #132693 - C3 idle state does not work.
+ * Workaround - do not use it. */
+CPUHAS(CPU_HWBUG_C3,
+		!IS_ENABLED(CONFIG_CPU_E16C),
+		false,
+		cpu == IDR_E16C_MDL && revision == 0);
 
 /*
  * Not bugs but features go here
@@ -568,6 +540,56 @@ CPUHAS(CPU_FEAT_QPREG,
 		CONFIG_CPU_ISET != 0,
 		CONFIG_CPU_ISET >= 5,
 		iset_ver >= E2K_ISET_V5);
+/* Hardware prefetcher that resides in L2 and works on phys. addresses */
+CPUHAS(CPU_FEAT_HW_PREFETCHER,
+		IS_ENABLED(CONFIG_E2K_MACHINE),
+		!IS_ENABLED(CONFIG_CPU_ES2) && !IS_ENABLED(CONFIG_CPU_E2S) &&
+			!IS_ENABLED(CONFIG_CPU_E8C) && !IS_ENABLED(CONFIG_CPU_E1CP) &&
+			!IS_ENABLED(CONFIG_CPU_E8C2) && !IS_ENABLED(CONFIG_CPU_E16C) &&
+			!IS_ENABLED(CONFIG_CPU_E2C3),
+		cpu != IDR_ES2_DSP_MDL && cpu != IDR_ES2_RU_MDL &&
+			cpu != IDR_E2S_MDL && cpu != IDR_E8C_MDL &&
+			cpu != IDR_E1CP_MDL && cpu != IDR_E8C2_MDL &&
+			cpu != IDR_E16C_MDL && cpu != IDR_E2C3_MDL);
+/* When flushing high order page table entries we must also flush
+ * all links below it.  E.g. when flushing PMD also flush PMD->PTE
+ * link (i.e. DTLB entry for address 0xff8000000000|(address >> 9)).
+ *
+ * Otherwise the following can happen:
+ * 1) High-order page is allocated.
+ * 2) Someone accesses the PMD->PTE link (e.g. half-spec. load) and
+ *    creates invalid entry in DTLB.
+ * 3) High-order page is split into 4 Kb pages.
+ * 4) Someone accesses the PMD->PTE link address (e.g. DTLB entry
+ *    probe) and reads the invalid entry created earlier.
+ *
+ * Since v6 we have separate TLBs for intermediate page table levels
+ * (TLU_CACHE.PWC) and for last level and invalid records (TLB).
+ * So the invalid entry created in 2) would go into TLB while access
+ * in 4) will search TLU_CACHE.PWC rendering this flush unneeded. */
+CPUHAS(CPU_FEAT_SEPARATE_TLU_CACHE,
+		CONFIG_CPU_ISET != 0,
+		CONFIG_CPU_ISET >= 6,
+		iset_ver >= E2K_ISET_V6);
+/* Set if FILLR instruction is supported.
+ *
+ * #135233 - FILLR does not work in hardware guests.
+ * Workaround - do not use it in hardware guests. */
+CPUHAS(CPU_FEAT_FILLR,
+		!IS_ENABLED(CONFIG_CPU_E16C) && !IS_ENABLED(CONFIG_CPU_E12C) &&
+			!IS_ENABLED(CONFIG_CPU_E2C3),
+		CONFIG_CPU_ISET >= 6,
+		iset_ver >= E2K_ISET_V6 &&
+			!((cpu == IDR_E16C_MDL || cpu == IDR_E12C_MDL ||
+			  cpu == IDR_E2C3_MDL) && is_hardware_guest));
+/* Set if FILLC instruction is supported.
+ *
+ * #135233 - software emulation of FILLC does not work in hardware guests.
+ * Workaround - use FILLC in hardware guests. */
+CPUHAS(CPU_FEAT_FILLC,
+		CONFIG_CPU_ISET != 0,
+		CONFIG_CPU_ISET >= 6,
+		iset_ver >= E2K_ISET_V6);
 /* Optimized version of machine.iset check */
 CPUHAS(CPU_FEAT_ISET_V3,
 		CONFIG_CPU_ISET != 0,
@@ -599,10 +621,12 @@ static inline unsigned long test_feature_dynamic(struct machdep *machine, int fe
 		test_feature(machine_p, feature)
 #define boot_cpu_has(feature)	boot_machine_has(&boot_machine, feature)
 
-#ifndef E2K_P2V
+#ifdef CONFIG_BOOT_E2K
 # define cpu_has(feature)	test_feature(&machine, feature)
-#else
+#elif defined(E2K_P2V)
 # define cpu_has(feature)	boot_cpu_has(feature)
+#else
+# define cpu_has(feature)	test_feature(&machine, feature)
 #endif
 
 /* Normally cpu_has() is passed symbolic name of feature (e.g. CPU_FEAT_*),
@@ -670,25 +694,25 @@ extern void restore_gregs_on_mask_v2(struct global_regs *, bool dirty_bgr,
 					unsigned long mask_not_restore);
 extern void restore_gregs_on_mask_v5(struct global_regs *, bool dirty_bgr,
 					unsigned long mask_not_restore);
-extern void save_dimtp_v6(e2k_dimtp_t *);
-extern void restore_dimtp_v6(const e2k_dimtp_t *);
+extern void save_dimtp_v6(union e2k_dimtp *);
+extern void restore_dimtp_v6(const union e2k_dimtp *);
 extern void save_kvm_context_v6(struct kvm_vcpu_arch *);
 extern void restore_kvm_context_v6(const struct kvm_vcpu_arch *);
 extern void qpswitchd_sm(int);
 
 extern void calculate_aau_aaldis_aaldas_v2(const struct pt_regs *regs,
-		struct thread_info *ti, struct e2k_aau_context *context);
+		e2k_aalda_t *aaldas, struct e2k_aau_context *context);
 extern void calculate_aau_aaldis_aaldas_v5(const struct pt_regs *regs,
-		struct thread_info *ti, struct e2k_aau_context *context);
+		e2k_aalda_t *aaldas, struct e2k_aau_context *context);
 extern void calculate_aau_aaldis_aaldas_v6(const struct pt_regs *regs,
-		struct thread_info *ti, struct e2k_aau_context *context);
+		e2k_aalda_t *aaldas, struct e2k_aau_context *context);
 extern void do_aau_fault_v2(int aa_field, struct pt_regs *regs);
 extern void do_aau_fault_v5(int aa_field, struct pt_regs *regs);
 extern void do_aau_fault_v6(int aa_field, struct pt_regs *regs);
 extern void save_aaldi_v2(u64 *aaldis);
 extern void save_aaldi_v5(u64 *aaldis);
-extern void get_aau_context_v2(struct e2k_aau_context *);
-extern void get_aau_context_v5(struct e2k_aau_context *);
+extern void get_aau_context_v2(struct e2k_aau_context *, e2k_aasr_t);
+extern void get_aau_context_v5(struct e2k_aau_context *, e2k_aasr_t);
 
 extern void flushts_v3(void);
 
@@ -723,9 +747,9 @@ void native_set_cu_hw1_v5(u64);
 
 void invalidate_MLT_v2(void);
 void invalidate_MLT_v3(void);
-void get_and_invalidate_MLT_context_v2(e2k_mlt_t *mlt_state);
-void get_and_invalidate_MLT_context_v3(e2k_mlt_t *mlt_state);
-void get_and_invalidate_MLT_context_v6(e2k_mlt_t *mlt_state);
+void get_and_invalidate_MLT_context_v2(struct e2k_mlt *mlt_state);
+void get_and_invalidate_MLT_context_v3(struct e2k_mlt *mlt_state);
+void get_and_invalidate_MLT_context_v6(struct e2k_mlt *mlt_state);
 
 #ifdef CONFIG_SMP
 void native_clock_off_v3(void);

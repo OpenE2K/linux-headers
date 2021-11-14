@@ -108,6 +108,27 @@
 	ONLY_RESTORE_KERNEL_GREGS(task__, cpu_id__, cpu_off__);		\
 })
 
+#define HOST_VCPU_STATE_REG_SWITCH_TO_GUEST(vcpu)			\
+({									\
+	machine.save_kernel_gregs(&vcpu->arch.host_ctxt.k_gregs);	\
+									\
+	u64 guest_vs = GET_GUEST_VCPU_STATE_POINTER(vcpu);		\
+	E2K_SET_DGREG(GUEST_VCPU_STATE_GREG, guest_vs);			\
+})
+
+#define HOST_VCPU_STATE_REG_RESTORE(host_ti)				\
+({									\
+	struct kvm_vcpu *vcpu = host_ti->vcpu;				\
+									\
+	struct kernel_gregs h_gregs;					\
+	machine.save_kernel_gregs(&h_gregs);				\
+									\
+	NATIVE_RESTORE_KERNEL_GREGS(&vcpu->arch.host_ctxt.k_gregs);	\
+	machine.save_kernel_gregs(&host_ti->k_gregs_light);		\
+									\
+	NATIVE_RESTORE_KERNEL_GREGS(&h_gregs);				\
+})
+
 #define	HOST_RESTORE_KERNEL_GREGS_AS_LIGHT(_ti) \
 		HOST_RESTORE_HOST_GREGS_FROM(&(_ti)->k_gregs_light, false)
 

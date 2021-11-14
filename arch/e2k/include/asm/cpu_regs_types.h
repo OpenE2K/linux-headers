@@ -4,7 +4,7 @@
 
 #ifdef __KERNEL__
 
-#include <asm/types.h>
+#include <linux/types.h>
 
 #ifndef __ASSEMBLY__
 
@@ -619,47 +619,65 @@ typedef	e2k_rwap_struct_t	psp_struct_t;
  * describes the full procedure chain stack memory as well as the current
  * pointer to the top of a procedure chain stack memory part.
  */
+typedef	union {
+	struct {
+		u64 base : E2K_VA_SIZE;
+		u64      : 58 - E2K_VA_SIZE;
+		u64 p    : 1;
+		u64 rw   : 2;
+		u64      : 3;
+	};
+	e2k_rwap_lo_fields_t	fields;
+	u64			word;
+} e2k_pcsp_lo_t;
+#define	_PCSP_lo_rw	rw
+#define	 E2K_PCSR_RW_PROTECTIONS	E2_RWAR_RW_ENABLE;
+#define	PCSP_lo_base	base
+#define	PCSP_lo_half	word
 
-	/*
-	 * Structure of lower word
-	 * access PCSP.lo.PCSP_lo_xxx or PCSP -> lo.PCSP_lo_xxx
-	 *	or PCSP_lo.PCSP_lo_xxx or PCSP_lo -> PCSP_lo_xxx
-	 */
-typedef	e2k_rwap_lo_struct_t	e2k_pcsp_lo_t;
-#define	_PCSP_lo_rw	E2K_RWAP_lo_rw		/* [60:59] - read/write flags */
-						/* should be "RW" */
-#define	E2K_PCSR_RW_PROTECTIONS			E2_RWAR_RW_ENABLE;
-#define	PCSP_lo_base	E2K_RWAP_lo_base	/* [47: 0] - base address */
-#define	PCSP_lo_half	E2K_RWAP_lo_half	/* [63: 0] - entire lower */
-						/* double-word of register */
-	/*
-	 * Structure of high word
-	 * access PCSP.hi.PCSP_hi_xxx or PCSP -> hi.PCSP_hi_xxx
-	 *	or PCSP_hi.PCSP_hi_xxx or PCSP_hi -> PCSP_hi_xxx
-	 */
-typedef	e2k_rwap_hi_struct_t	e2k_pcsp_hi_t;
-#define	PCSP_hi_size	E2K_RPSP_hi_size	/* [63:32] - size */
-#define	PCSP_hi_ind	E2K_RPSP_hi_ind		/* [31: 0] - index for SPILL */
-						/*		and FILL */
-#define	PCSP_hi_half	E2K_RPSP_hi_half	/* [63: 0] - entire high */
+typedef	union {
+	struct {
+		u64 ind  : 32;
+		u64 size : 32;
+	};
+	e2k_rpsp_hi_fields_t	fields;
+	u64			word;
+} e2k_pcsp_hi_t;
+#define	PCSP_hi_size	size
+#define	PCSP_hi_ind	ind
+#define	PCSP_hi_half	word
 
 	/*
 	 * Structure of quad-word register
 	 * access PCSP.PCSP_xxx or PCSP -> PCSP_xxx
 	 */
-typedef	e2k_rwap_struct_t	pcsp_struct_t;
-#define	_PCSP_rw	E2K_RWAP_rw		/* [60:59] - read/write flags */
-						/* should be "RW" */
-#define	PCSP_base	E2K_RWAP_base		/* [47: 0] - base address */
-#define	PCSP_size	E2K_RPSP_size		/* [63:32] - size */
-#define	PCSP_ind	E2K_RPSP_ind		/* [31: 0] - index for SPILL */
-						/*		and FILL */
-#define	PCSP_lo_reg	E2K_RWAP_lo_reg		/* [63: 0] - entire lower */
-						/* double-word of register */
-#define	PCSP_hi_reg	E2K_RPSP_hi_reg		/* [63: 0] - entire high */
-						/* double-word of register */
-#define	PCSP_lo_struct	E2K_RWAP_lo_struct	/* low register structure */
-#define	PCSP_hi_struct	E2K_RPSP_hi_struct	/* high register structure */
+typedef	struct {
+	union {
+		struct {
+			u64 base : E2K_VA_SIZE;
+			u64      : 58 - E2K_VA_SIZE;
+			u64 p    : 1;
+			u64 rw   : 2;
+			u64      : 3;
+		};
+		e2k_pcsp_lo_t lo;
+	};
+	union {
+		struct {
+			u64 ind  : 32;
+			u64 size : 32;
+		};
+		e2k_pcsp_hi_t hi;
+	};
+} pcsp_struct_t;
+#define	PCSP_rw		rw
+#define	PCSP_base	base
+#define	PCSP_size	size
+#define	PCSP_ind	ind
+#define	PCSP_lo_reg	lo.word
+#define	PCSP_hi_reg	hi.word
+#define	PCSP_lo_struct	lo
+#define	PCSP_hi_struct	hi
 #endif /* !(__ASSEMBLY__) */
 
 #define	E2K_ALIGN_PCSTACK	12		/* Procedure chain stack */
@@ -2398,33 +2416,19 @@ typedef union {
 		u32 btf  : 1;
 		u32 gm   : 1;
 	};
-	struct {
-		u32 v0   : 1;
-		u32 t0   : 1;
-		u32 v1   : 1;
-		u32 t1   : 1;
-		u32 v2   : 1;
-		u32 t2   : 1;
-		u32 v3   : 1;
-		u32 t3   : 1;
-		u32 bt   : 1;
-		u32 stop : 1;
-		u32 btf  : 1;
-		u32 gm   : 1;
-	} fields;
 	u32 word;
 } e2k_dibcr_t;
 #define	DIBCR_reg	word
 
 #define E2K_DIBCR_MASK(cp_num) (0x3ULL << ((cp_num) * 2))
 
-typedef union {
+typedef union e2k_dimtp {
 	struct {
 		struct {
-			u64 base   : E2K_VA_SIZE;
-			u64 __pad1 : 59 - E2K_VA_SIZE;
-			u64 rw     : 2;
-			u64 __pad2 : 3;
+			u64 base : E2K_VA_SIZE;
+			u64      : 59 - E2K_VA_SIZE;
+			u64 rw   : 2;
+			u64      : 3;
 		};
 		struct {
 			u64 ind  : 32;

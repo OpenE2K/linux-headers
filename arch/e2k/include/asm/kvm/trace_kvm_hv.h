@@ -295,6 +295,13 @@ TRACE_EVENT(
 		__field(	u64,	pcsp_hi	)
 		__field(	u64,	pshtp	)
 		__field(	unsigned int,	pcshtp	)
+		/* Backup stacks */
+		__dynamic_array(u64, frames, hw_ctxt->bu_pcsp_hi.ind / SZ_OF_CR)
+		__field(size_t, frames_len)
+		__field(	u64,	bu_psp_lo	)
+		__field(	u64,	bu_psp_hi	)
+		__field(	u64,	bu_pcsp_lo	)
+		__field(	u64,	bu_pcsp_hi	)
 		/* CRs */
 		__field(	u64,	cr0_lo	)
 		__field(	u64,	cr0_hi	)
@@ -303,6 +310,15 @@ TRACE_EVENT(
 	),
 
 	TP_fast_assign(
+		u64 *frames = __get_dynamic_array(frames);
+		e2k_mem_crs_t *chain_stack = (e2k_mem_crs_t *) hw_ctxt->bu_pcsp_lo.base;
+		size_t len = hw_ctxt->bu_pcsp_hi.ind / SZ_OF_CR;
+		unsigned long i;
+
+		__entry->frames_len = len;
+		for (i = 0; i < len; i++)
+			frames[i] = chain_stack[i].cr0_hi.ip << 3;
+
 		__entry->sbr = AW(sw_ctxt->sbr);
 		__entry->usd_lo = AW(sw_ctxt->usd_lo);
 		__entry->usd_hi = AW(sw_ctxt->usd_hi);
@@ -316,17 +332,28 @@ TRACE_EVENT(
 		__entry->cr0_hi = AW(crs->cr0_hi);
 		__entry->cr1_lo = AW(crs->cr1_lo);
 		__entry->cr1_hi = AW(crs->cr1_hi);
+		__entry->bu_psp_lo = AW(hw_ctxt->bu_psp_lo);
+		__entry->bu_psp_hi = AW(hw_ctxt->bu_psp_hi);
+		__entry->bu_pcsp_lo = AW(hw_ctxt->bu_pcsp_lo);
+		__entry->bu_pcsp_hi = AW(hw_ctxt->bu_pcsp_hi);
 	),
 
 	TP_printk("sbr 0x%llx, usd_lo 0x%llx, usd_hi 0x%llx\n"
-		"sh_psp_lo 0x%llx, sh_psp_hi 0x%llx, sh_pcsp_lo 0x%llx, sh_pcsp_hi 0x%llx\n"
-		"sh_pshtp 0x%llx, sh_pcshtp 0x%x\n"
+		"sh_psp_lo 0x%llx, sh_psp_hi 0x%llx, sh_pshtp 0x%llx\n"
+		"sh_pcsp_lo 0x%llx, sh_pcsp_hi 0x%llx, sh_pcshtp 0x%x\n"
 		"cr0_lo 0x%llx, cr0_hi 0x%llx, cr1_lo 0x%llx, cr1_hi 0x%llx\n"
+		"bu_psp_lo 0x%llx, bu_psp_hi 0x%llx\n"
+		"bu_pcsp_lo 0x%llx, bu_pcsp_hi 0x%llx\n"
+		"backup chain stack IPs: %s\n"
 		,
 		__entry->sbr, __entry->usd_lo, __entry->usd_hi,
-		__entry->psp_lo, __entry->psp_hi, __entry->pcsp_lo, __entry->pcsp_hi,
-		__entry->pshtp, __entry->pcshtp,
-		__entry->cr0_lo, __entry->cr0_hi, __entry->cr1_lo, __entry->cr1_hi)
+		__entry->psp_lo, __entry->psp_hi, __entry->pshtp,
+		__entry->pcsp_lo, __entry->pcsp_hi, __entry->pcshtp,
+		__entry->cr0_lo, __entry->cr0_hi, __entry->cr1_lo, __entry->cr1_hi,
+		__entry->bu_psp_lo, __entry->bu_psp_hi,
+		__entry->bu_pcsp_lo, __entry->bu_pcsp_hi,
+		__print_array(__get_dynamic_array(frames),
+				__entry->frames_len, sizeof(u64)))
 
 );
 
@@ -543,6 +570,7 @@ TRACE_EVENT(
 		__entry->us_cl_d, __entry->us_cl_b, __entry->us_cl_up,
 		__entry->us_cl_m0, __entry->us_cl_m1, __entry->us_cl_m2, __entry->us_cl_m3)
 );
+
 
 #endif /* _TRACE_KVM_HV_H */
 

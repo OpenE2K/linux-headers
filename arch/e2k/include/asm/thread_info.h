@@ -53,8 +53,6 @@ typedef struct thread_info {
 	unsigned long		status;		/* thread synchronous flags */
 	long long		irq_enter_clk;	/* CPU clock when irq enter */
 						/* occured */
-	int			preempt_count;	/* 0 => preemptable, <0 */
-						/* => BUG */
 	mm_segment_t		addr_limit;	/* thread address space */
 	struct pt_regs		*pt_regs;	/* head of pt_regs */
 						/* structure queue: */
@@ -396,12 +394,9 @@ void clear_g_list(struct thread_info *thread_info) { }
 
 /*
  * Macros/functions for gaining access to the thread information structure.
- *
- * preempt_count needs to be 1 initially, until the scheduler is functional.
  */
 #define INIT_THREAD_INFO(tsk)			\
 {						\
-	.preempt_count	= INIT_PREEMPT_COUNT,	\
 	.addr_limit	= KERNEL_DS,		\
 	.k_usd_lo = (e2k_usd_lo_t) { \
 		.word = (unsigned long) init_stack + \
@@ -429,6 +424,7 @@ extern void clear_thread_info(struct task_struct *task);
 
 extern unsigned long *alloc_thread_stack_node(struct task_struct *, int);
 extern void free_thread_stack(struct task_struct *tsk);
+extern int free_vm_stack_cache(unsigned int cpu);
 #endif /* __ASSEMBLY__ */
 
 #endif /* __KERNEL__ */

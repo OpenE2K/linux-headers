@@ -4,8 +4,6 @@
 #if !defined(_TRACE_E2K_MMU_DTLB_V2_H) || defined(TRACE_HEADER_MULTI_READ)
 #define _TRACE_E2K_MMU_DTLB_V2_H
 
-#include <asm/mmu-regs-types-v2.h>
-
 #define E2K_TRACE_PRINT_DTLB_ENTRY_V2(entry) \
 	((entry & DTLB_ENTRY_ERROR_MASK_V2) ? \
 		__print_flags(entry & DTLB_ENTRY_ERROR_MASK_V2, "|", \

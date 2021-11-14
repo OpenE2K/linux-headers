@@ -58,9 +58,6 @@ extern unsigned long		mmu_last_context;
 #define my_cpu_last_context1(num_cpu)	mmu_last_context
 #endif /* CONFIG_SMP */
 
-extern int arch_dup_mmap(struct mm_struct *oldmm, struct mm_struct *mm);
-extern void arch_exit_mmap(struct mm_struct *mm);
-
 static inline void
 reload_context_mask(unsigned long mask)
 {

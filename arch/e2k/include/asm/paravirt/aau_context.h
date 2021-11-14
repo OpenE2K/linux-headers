@@ -148,20 +148,20 @@
 	}								\
 })
 
-#define PV_GET_AAU_CONTEXT_V2(aau_context)				\
+#define PV_GET_AAU_CONTEXT_V2(aau_context, aasr)			\
 ({									\
 	if (!paravirt_enabled()) {					\
-		NATIVE_GET_AAU_CONTEXT_V2(aau_context);			\
+		NATIVE_GET_AAU_CONTEXT_V2(aau_context, aasr);		\
 	} else {							\
-		kvm_get_aau_context(aau_context);			\
+		kvm_get_aau_context(aau_context, aasr);			\
 	}								\
 })
-#define PV_GET_AAU_CONTEXT_V5(aau_context)				\
+#define PV_GET_AAU_CONTEXT_V5(aau_context, aasr)			\
 ({									\
 	if (!paravirt_enabled()) {					\
-		NATIVE_GET_AAU_CONTEXT_V5(aau_context);			\
+		NATIVE_GET_AAU_CONTEXT_V5(aau_context, aasr);		\
 	} else {							\
-		kvm_get_aau_context(aau_context);			\
+		kvm_get_aau_context(aau_context, aasr);			\
 	}								\
 })
 

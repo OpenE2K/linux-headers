@@ -164,10 +164,19 @@ kvm_do_aau_page_fault(struct pt_regs *const regs, e2k_addr_t address,
 	ttable_entry; \
 })
 
-#define	FILL_HARDWARE_STACKS()	\
+#define	FILL_HARDWARE_STACKS__HW()	\
 do { \
 	if (IS_HV_GM()) { \
-		NATIVE_FILL_HARDWARE_STACKS(); \
+		NATIVE_FILL_HARDWARE_STACKS__HW(); \
+	} else { \
+		KVM_FILL_HARDWARE_STACKS(); \
+	} \
+} while (false)
+
+#define	FILL_HARDWARE_STACKS__SW()	\
+do { \
+	if (IS_HV_GM()) { \
+		NATIVE_FILL_HARDWARE_STACKS__SW(); \
 	} else { \
 		KVM_FILL_HARDWARE_STACKS(); \
 	} \

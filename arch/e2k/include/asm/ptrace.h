@@ -149,6 +149,7 @@ typedef	struct pt_regs {
 	int		sys_num;	/* to restart sys_call		*/
 	int		kernel_entry;
 	union pt_regs_flags flags;
+	e2k_aasr_t	aasr;
 	e2k_ctpr_t	ctpr1;		/* CTPRj for control transfer */
 	e2k_ctpr_t	ctpr2;
 	e2k_ctpr_t	ctpr3;
@@ -231,23 +232,6 @@ pt_regs_to_trap_regs(struct pt_regs *regs)
 	return PTR_ALIGN((void *) regs + sizeof(*regs), 8);
 }
 
-#ifdef CONFIG_USE_AAU
-static inline e2k_aau_t *
-pt_regs_to_aau_regs(struct pt_regs *regs)
-{
-	struct trap_pt_regs *trap;
-
-	trap = pt_regs_to_trap_regs(regs);
-
-	return PTR_ALIGN((void *) trap + sizeof(*trap), 8);
-}
-#else	/* ! CONFIG_USE_AAU */
-static inline e2k_aau_t *
-pt_regs_to_aau_regs(struct pt_regs *regs)
-{
-	return NULL;
-}
-#endif
 static inline bool
 is_sys_call_pt_regs(struct pt_regs *regs)
 {

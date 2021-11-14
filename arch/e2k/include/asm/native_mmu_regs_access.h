@@ -150,7 +150,7 @@ native_invalidate_CACHE_L12(void)
 	unsigned long flags;
 
 	DebugMR("Flush : Invalidate all CACHEs (op 0x%lx)\n",
-		_flush_op_invalidate_cache_L12);
+		flush_op_invalidate_cache_L12);
 
 	/* Invalidate operation was removed in E2S */
 	invalidate_supported = NATIVE_IS_MACHINE_ES2;
@@ -158,9 +158,9 @@ native_invalidate_CACHE_L12(void)
 	raw_all_irq_save(flags);
 	E2K_WAIT_MA;
 	if (invalidate_supported)
-		NATIVE_FLUSH_CACHE_L12(_flush_op_invalidate_cache_L12);
+		NATIVE_FLUSH_CACHE_L12(flush_op_invalidate_cache_L12);
 	else
-		NATIVE_FLUSH_CACHE_L12(_flush_op_write_back_cache_L12);
+		NATIVE_FLUSH_CACHE_L12(flush_op_write_back_cache_L12);
 	E2K_WAIT_FLUSH;
 	raw_all_irq_restore(flags);
 }
@@ -171,10 +171,10 @@ native_write_back_CACHE_L12(void)
 	unsigned long flags;
 
 	DebugMR("Flush : Write back all CACHEs (op 0x%lx)\n",
-		_flush_op_write_back_cache_L12);
+		flush_op_write_back_cache_L12);
 	raw_all_irq_save(flags);
 	E2K_WAIT_MA;
-	NATIVE_FLUSH_CACHE_L12(_flush_op_write_back_cache_L12);
+	NATIVE_FLUSH_CACHE_L12(flush_op_write_back_cache_L12);
 	E2K_WAIT_FLUSH;
 	raw_all_irq_restore(flags);
 }
@@ -191,10 +191,10 @@ native_flush_TLB_all(void)
 {
 	unsigned long flags;
 
-	DebugMR("Flush all TLBs (op 0x%lx)\n", _flush_op_tlb_all);
+	DebugMR("Flush all TLBs (op 0x%lx)\n", flush_op_tlb_all);
 	raw_all_irq_save(flags);
 	E2K_WAIT_ST;
-	NATIVE_FLUSH_TLB_ALL(_flush_op_tlb_all);
+	NATIVE_FLUSH_TLB_ALL(flush_op_tlb_all);
 	E2K_WAIT(_fl_c | _ma_c);
 	raw_all_irq_restore(flags);
 }
@@ -209,9 +209,9 @@ native_flush_TLB_all(void)
 static inline void
 native_flush_ICACHE_all(void)
 {
-	DebugMR("Flush all ICACHE op 0x%lx\n", _flush_op_icache_all);
+	DebugMR("Flush all ICACHE op 0x%lx\n", flush_op_icache_all);
 	E2K_WAIT_ST;
-	NATIVE_FLUSH_ICACHE_ALL(_flush_op_icache_all);
+	NATIVE_FLUSH_ICACHE_ALL(flush_op_icache_all);
 	E2K_WAIT_FLUSH;
 }
 

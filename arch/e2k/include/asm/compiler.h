@@ -26,7 +26,10 @@
  * The same goes for preemption-disabled sections: these clobbers
  * will forbid compiler to move per-cpu area address calculation out
  * from them. Since disabling interrupts also disables preemption,
- * we also need these clobbers when writing PSR/UPSR. */
+ * we also need these clobbers when writing PSR/UPSR.
+ *
+ * And of course operations on preempt_count must not be moved
+ * out of/into preemption disabled sections. */
 #define PREEMPTION_CLOBBERS __PREEMPTION_CLOBBERS(SMP_CPU_ID_GREG, MY_CPU_OFFSET_GREG)
 
 #ifdef CONFIG_DEBUG_LCC_VOLATILE_ATOMIC

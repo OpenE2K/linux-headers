@@ -106,12 +106,6 @@ kvm_is_hw_pv_vm_available(void)
 /* memory slots that does not exposed to userspace */
 #define KVM_PRIVATE_MEM_SLOTS	4
 
-#undef E2K_INVALID_PAGE
-#define E2K_INVALID_PAGE	(~(hpa_t)0)
-
-#define UNMAPPED_GVA		(~(gpa_t)0)
-#define	arch_is_error_gpa(gpa)	((gpa_t)(gpa) == UNMAPPED_GVA)
-
 /*
  * See include/linux/kvm_host.h
  * For the normal pfn, the highest 12 bits should be zero,
@@ -711,6 +705,7 @@ typedef struct kvm_sw_cpu_context {
 	mmu_reg_t	trap_count;
 	bool		no_switch_pt;	/* do not switch PT registers */
 
+	/* Monitors and breakpoints */
 	e2k_dibcr_t	dibcr;
 	e2k_ddbcr_t	ddbcr;
 	e2k_dibsr_t	dibsr;
@@ -729,9 +724,11 @@ typedef struct kvm_sw_cpu_context {
 	u64		ddbar1;
 	u64		ddbar2;
 	u64		ddbar3;
+	e2k_dimtp_t	dimtp;
 
 #ifdef CONFIG_USE_AAU
 	e2k_aau_t aau_context;
+	e2k_aasr_t aasr;
 #endif
 
 	u64 cs_lo;
@@ -911,6 +908,8 @@ typedef struct kvm_host_context {
 	unsigned	osem;	/* OSEM register state */
 	/* the host kernel's signal/trap stack of contexts */
 	kvm_signal_context_t signal;
+	/* kgregs of host kernel */
+	struct kernel_gregs     k_gregs;
 } kvm_host_context_t;
 
 #ifdef CONFIG_KVM_ASYNC_PF

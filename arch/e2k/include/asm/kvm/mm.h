@@ -7,6 +7,7 @@
 #include <linux/kvm.h>
 
 #include <asm/kvm/nid.h>
+#include <asm/kvm/gva_cache.h>
 
 #define	GMMID_MAX_LIMIT		(GPID_MAX_LIMIT)
 #define RESERVED_GMMIDS		1	/* 0 is reserved for init_mm */
@@ -52,6 +53,7 @@ typedef struct gmm_struct {
 					/* the guest mm */
 	cpumask_t cpu_vm_mask;		/* mask of CPUs where the mm is */
 					/* in use or was some early */
+	gva_cache_t *gva_cache;		/* gva -> gpa,hva cache */
 } gmm_struct_t;
 
 /* same as accessor for struct mm_struct's cpu_vm_mask but for guest mm */

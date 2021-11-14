@@ -82,8 +82,8 @@ typedef int (*parse_chain_fn_t)(e2k_mem_crs_t *crs,
 		int flags, void *arg);
 #define PCS_USER 0x1
 #define PCS_OPEN_IRQS 0x2
-extern notrace int parse_chain_stack(int flags, struct task_struct *p,
-				     parse_chain_fn_t func, void *arg);
+extern notrace long parse_chain_stack(int flags, struct task_struct *p,
+				parse_chain_fn_t func, void *arg);
 
 
 extern	void	*kernel_symtab;
@@ -198,8 +198,6 @@ extern void print_chain_stack(struct stack_regs *regs,
 				int show_reg_window);
 extern void copy_stack_regs(struct task_struct *task,
 		const struct pt_regs *limit_regs, struct stack_regs *regs);
-extern int parse_chain_stack(int flags, struct task_struct *p,
-				parse_chain_fn_t func, void *arg);
 
 extern struct stack_regs stack_regs_cache[NR_CPUS];
 extern int debug_userstack;
@@ -607,7 +605,7 @@ static inline int set_hardware_data_breakpoint(u64 addr, u64 size,
 		e2k_dibcr_t dibcr;
 
 		dibcr = READ_DIBCR_REG();
-		AS(dibcr).stop = 1;
+		dibcr.stop = 1;
 		WRITE_DIBCR_REG(dibcr);
 	}
 
@@ -746,17 +744,16 @@ print_aau_regs(char *str, e2k_aau_t *context, struct pt_regs *regs,
 		"ctpr2          = 0x%llx\n"
 		"lsr            = 0x%llx\n"
 		"ilcr           = 0x%llx\n",
-		AW(context->aasr),
-		AAU_NULL(context->aasr) ? "NULL" :
-		AAU_READY(context->aasr) ? "READY" :
-		AAU_ACTIVE(context->aasr) ? "ACTIVE" :
-		AAU_STOPPED(context->aasr) ? "STOPPED":
+		AW(regs->aasr),
+		AAU_NULL(regs->aasr) ? "NULL" :
+		AAU_READY(regs->aasr) ? "READY" :
+		AAU_ACTIVE(regs->aasr) ? "ACTIVE" :
+		AAU_STOPPED(regs->aasr) ? "STOPPED" :
 						"undefined",
-		AS(context->aasr).iab,
-		AS(context->aasr).stb,
+		regs->aasr.iab, regs->aasr.stb,
 		AW(regs->ctpr2), regs->lsr, regs->ilcr);
 
-	if (AAU_STOPPED(context->aasr)) {
+	if (AAU_STOPPED(regs->aasr)) {
 		pr_info("aaldv          = 0x%llx\n"
 			"aaldm          = 0x%llx\n",
 			AW(context->aaldv), AW(context->aaldm));
@@ -767,7 +764,7 @@ print_aau_regs(char *str, e2k_aau_t *context, struct pt_regs *regs,
 			"AALDM will not be printed\n");
 	}
 
-	if (AS(context->aasr).iab) {
+	if (regs->aasr.iab) {
 		for (i = 0; i < 32; i++) {
 			pr_info("aad[%d].hi = 0x%llx ", i,
 					AW(context->aads[i]).hi);
@@ -794,7 +791,7 @@ print_aau_regs(char *str, e2k_aau_t *context, struct pt_regs *regs,
 			"AAINCR, AAINCR_TAGS\n");
 	}
 
-	if (AS(context->aasr).stb) {
+	if (regs->aasr.stb) {
 		for (i = 0; i < 16; i++) {
 			pr_info("aasti[%d] = 0x%llx\n", i, (old_iset) ?
 					(u64) (u32) context->aastis[i] :

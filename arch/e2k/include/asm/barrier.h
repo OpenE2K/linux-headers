@@ -4,7 +4,6 @@
 #include <linux/compiler.h>
 
 #include <asm/e2k_api.h>
-#include <asm/alternative.h>
 #include <asm/atomic_api.h>
 
 #if CONFIG_CPU_ISET >= 6

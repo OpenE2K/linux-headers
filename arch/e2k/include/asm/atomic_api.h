@@ -27,9 +27,9 @@
 # else
 #  ifndef __ASSEMBLY__
 # include <asm/glob_regs.h>
-register unsigned long long __cpu_reg DO_ASM_GET_GREG_MEMONIC(SMP_CPU_ID_GREG);
+register unsigned long long __cpu_preempt_reg DO_ASM_GET_GREG_MEMONIC(SMP_CPU_ID_GREG);
 #  endif
-#  define NATIVE_HWBUG_AFTER_LD_ACQ_CPU __cpu_reg
+#  define NATIVE_HWBUG_AFTER_LD_ACQ_CPU ((unsigned int) __cpu_preempt_reg)
 # endif
 
 #elif defined(E2K_P2V)

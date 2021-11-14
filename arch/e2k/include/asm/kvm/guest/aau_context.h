@@ -29,13 +29,13 @@
 	} \
 })
 
-#define	KVM_RESTORE_AAU_MASK_REGS(aau_context)	\
+#define	KVM_RESTORE_AAU_MASK_REGS(aaldm, aaldv, aau_context) \
 ({ \
 	if (IS_HV_GM()) { \
 		E2K_CMD_SEPARATOR; \
-		NATIVE_RESTORE_AAU_MASK_REGS(aau_context); \
+		NATIVE_RESTORE_AAU_MASK_REGS(aaldm, aaldv, aau_context); \
 	} else { \
-		PREFIX_RESTORE_AAU_MASK_REGS(KVM, kvm, aau_context); \
+		PREFIX_RESTORE_AAU_MASK_REGS(KVM, kvm, aaldm, aaldv, aau_context); \
 	} \
 })
 
@@ -155,30 +155,30 @@
 	} \
 })
 
-#define	KVM_GET_AAU_CONTEXT(context)	\
-({ \
+#define	KVM_GET_AAU_CONTEXT(context, aasr) \
+do { \
 	if (IS_HV_GM()) { \
-		NATIVE_GET_AAU_CONTEXT(context); \
+		NATIVE_GET_AAU_CONTEXT(context, aasr); \
 	} else { \
-		PREFIX_GET_AAU_CONTEXT(KVM, kvm, V5, v5, context); \
+		PREFIX_GET_AAU_CONTEXT(KVM, kvm, V5, v5, context, aasr); \
 	} \
-})
-#define	KVM_GET_AAU_CONTEXT_V2(context)	\
-({ \
+} while (0)
+#define	KVM_GET_AAU_CONTEXT_V2(context, aasr) \
+do { \
 	if (IS_HV_GM()) { \
-		NATIVE_GET_AAU_CONTEXT_V2(context); \
+		NATIVE_GET_AAU_CONTEXT_V2(context, aasr); \
 	} else { \
-		PREFIX_GET_AAU_CONTEXT(KVM, kvm, V5, v5, context); \
+		PREFIX_GET_AAU_CONTEXT(KVM, kvm, V5, v5, context, aasr); \
 	} \
-})
-#define	KVM_GET_AAU_CONTEXT_V5(context)	\
-({ \
+} while (0)
+#define	KVM_GET_AAU_CONTEXT_V5(context, aasr) \
+do { \
 	if (IS_HV_GM()) { \
-		NATIVE_GET_AAU_CONTEXT_V5(context); \
+		NATIVE_GET_AAU_CONTEXT_V5(context, aasr); \
 	} else { \
-		PREFIX_GET_AAU_CONTEXT(KVM, kvm, V5, v5, context); \
+		PREFIX_GET_AAU_CONTEXT(KVM, kvm, V5, v5, context, aasr); \
 	} \
-})
+} while (0)
 
 static inline void
 kvm_save_aaldi(u64 *aaldis)
@@ -238,24 +238,13 @@ kvm_get_synchronous_part_v5(e2k_aau_t *context)
  * It's taken that aasr was get earlier(from get_aau_context caller)
  * and comparison with aasr.iab was taken.
  */
-static inline void
-kvm_get_aau_context(e2k_aau_t *context)
+static inline void kvm_get_aau_context(e2k_aau_t *context, e2k_aasr_t aasr)
 {
-	KVM_GET_AAU_CONTEXT(context);
-}
-static inline void
-kvm_get_aau_context_v2(e2k_aau_t *context)
-{
-	KVM_GET_AAU_CONTEXT_V2(context);
-}
-static inline void
-kvm_get_aau_context_v5(e2k_aau_t *context)
-{
-	KVM_GET_AAU_CONTEXT_V5(context);
+	KVM_GET_AAU_CONTEXT(context, aasr);
 }
 
-static __always_inline void
-kvm_set_aau_context(e2k_aau_t *context)
+static __always_inline void kvm_set_aau_context(e2k_aau_t *context,
+		const e2k_aalda_t *aalda, e2k_aasr_t aasr)
 {
 	/* AAU contesxt should restore host */
 }
@@ -266,8 +255,8 @@ kvm_set_aau_context(e2k_aau_t *context)
 #define	SAVE_AAU_MASK_REGS(aau_context, aasr)	\
 		KVM_SAVE_AAU_MASK_REGS(aau_context, aasr)
 
-#define	RESTORE_AAU_MASK_REGS(aau_context)	\
-		KVM_RESTORE_AAU_MASK_REGS(aau_context)
+#define	RESTORE_AAU_MASK_REGS(aaldm, aaldv, aau_context) \
+		KVM_RESTORE_AAU_MASK_REGS(aaldm, aaldv, aau_context)
 
 #define SAVE_AADS(aau_regs)	\
 		KVM_SAVE_AADS(aau_regs)
@@ -295,8 +284,8 @@ kvm_set_aau_context(e2k_aau_t *context)
 #define	GET_SYNCHRONOUS_PART_V5(context)	\
 		KVM_GET_SYNCHRONOUS_PART_V5(context)
 
-#define	GET_AAU_CONTEXT_V2(context)	KVM_GET_AAU_CONTEXT_V2(context)
-#define	GET_AAU_CONTEXT_V5(context)	KVM_GET_AAU_CONTEXT_V5(context)
+#define	GET_AAU_CONTEXT_V2(context, aasr) KVM_GET_AAU_CONTEXT_V2(context, aasr)
+#define	GET_AAU_CONTEXT_V5(context, aasr) KVM_GET_AAU_CONTEXT_V5(context, aasr)
 
 static inline void
 save_aaldi(u64 *aaldis)
@@ -309,15 +298,15 @@ set_array_descriptors(e2k_aau_t *context)
 	kvm_set_array_descriptors(context);
 }
 static inline void
-get_aau_context(e2k_aau_t *context)
+get_aau_context(e2k_aau_t *context, e2k_aasr_t aasr)
 {
-	kvm_get_aau_context(context);
+	kvm_get_aau_context(context, aasr);
 }
 
-static __always_inline void
-set_aau_context(e2k_aau_t *context)
+static __always_inline void set_aau_context(e2k_aau_t *context,
+		const e2k_aalda_t *aalda, e2k_aasr_t aasr)
 {
-	kvm_set_aau_context(context);
+	kvm_set_aau_context(context, aalda, aasr);
 }
 
 #endif	/* CONFIG_KVM_GUEST_KERNEL */

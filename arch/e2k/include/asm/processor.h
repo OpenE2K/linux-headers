@@ -68,8 +68,7 @@ extern	cpuinfo_e2k_t	cpu_data[NR_CPUS];
 #define INVALID_IO_BITMAP_OFFSET 0x8000
 
 typedef struct thread_struct {
-#ifndef CONFIG_CPU_HAS_FILL_INSTRUCTION
-	/* Used as a temporary area */
+	/* Used as a temporary area for !CPU_FEAT_FILL_INSTRUCTION case */
 	struct {
 		e2k_cr0_hi_t cr0_hi;
 		e2k_cr1_lo_t cr1_lo;
@@ -84,7 +83,7 @@ typedef struct thread_struct {
 		bool from_paravirt_guest;
 # endif
 	} fill;
-#endif
+
 	u32		context;	/* context of running process	     */
 	struct sw_regs	sw_regs;	/* switch regs                       */
 

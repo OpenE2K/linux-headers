@@ -2,7 +2,11 @@
 #define _E2K_API_H_
 
 #include <linux/stringify.h>
+#include <asm/alternative.h>
+#include <asm/cpu_features.h>
+#include <asm/cpu_regs_types.h> /* For instr_cs1_t */
 #include <asm/mas.h>
+
 #include <uapi/asm/e2k_api.h>
 
 
@@ -4602,76 +4606,6 @@ do { \
 	__res; \
 })
 
-#if !defined CONFIG_E2K_MACHINE || \
-    defined CONFIG_E2K_ES2_DSP || defined CONFIG_E2K_ES2_RU || \
-    (defined CONFIG_E2K_E2S && defined CONFIG_NUMA)
-# define WORKAROUND_WAIT_HWBUG(num) (((num) & (_st_c | _all_c | _sas)) ? \
-						((num) | _ma_c) : (num))
-#else
-# define WORKAROUND_WAIT_HWBUG(num)	num
-#endif
-
-#define __E2K_WAIT(_num) \
-do { \
-	int unused, num = WORKAROUND_WAIT_HWBUG(_num); \
-	instr_cs1_t cs1 = { \
-		.opc = CS1_OPC_WAIT, \
-		.param = num \
-	}; \
- \
-	/* Use "asm volatile" around tricky barriers such as _ma_c, _fl_c, etc */ \
-	if ((_num) & ~(_st_c | _ld_c | _sas | _sal | _las | _lal | _mt)) \
-		asm volatile ("" ::: "memory"); \
- \
-	/* CPU_NO_HWBUG_SOFT_WAIT: use faster workaround for "lal" barriers */ \
-	if ((_num) == (_ld_c | _lal) || (_num) == (_ld_c | _lal | _mt)) { \
-		_Pragma("no_asm_inline") \
-		asm NOT_VOLATILE (ALTERNATIVE( \
-			/* Default version - add nop 5 */ \
-				".word 0x00008281\n" \
-				".word %[cs1]\n", \
-			/* CPU_NO_HWBUG_SOFT_WAIT version */ \
-				".word 0x00008001\n" \
-				".word %[cs1]\n", \
-			%[facility]) \
-			: "=r" (unused) \
-			: [cs1] "i" (cs1.word), \
-			  [facility] "i" (CPU_NO_HWBUG_SOFT_WAIT) \
-			: "memory"); \
-	} else { \
-		instr_cs1_t cs1_no_soft_barriers = { \
-			.opc = CS1_OPC_WAIT, \
-			.param = num & ~(_lal | _las | _sal | _sas) \
-		}; \
-		/* #79245 - use .word to encode relaxed barriers */ \
-		_Pragma("no_asm_inline") \
-		asm NOT_VOLATILE (ALTERNATIVE( \
-			/* Default version */ \
-				".word 0x00008001\n" \
-				".word %[cs1_no_soft_barriers]\n", \
-			/* CPU_NO_HWBUG_SOFT_WAIT version - use soft barriers */ \
-				".word 0x00008001\n" \
-				".word %[cs1]\n", \
-			%[facility]) \
-			: "=r" (unused) \
-			: [cs1] "i" (cs1.word), \
-			  [cs1_no_soft_barriers] "i" (cs1_no_soft_barriers.word), \
-			  [facility] "i" (CPU_NO_HWBUG_SOFT_WAIT) \
-			: "memory"); \
-	} \
- \
-	/* Use "asm volatile" around tricky barriers such as _ma_c */ \
-	if ((_num) & ~(_st_c | _ld_c | _sas | _sal | _las | _lal | _mt)) \
-		asm volatile ("" ::: "memory"); \
-} while (0)
-
-#define E2K_WAIT(num) \
-do { \
-	__E2K_WAIT(num); \
-	if (num & (_st_c | _ld_c | _all_c | _ma_c)) \
-		NATIVE_HWBUG_AFTER_LD_ACQ(); \
-} while (0)
-
 #define _mem_mod	0x2000 /* watch for modification */
 #define _int		0x1000	/* stop the conveyor untill interrupt */
 #define _mt		0x800
@@ -4687,6 +4621,92 @@ do { \
 #define _st_c		0x4	/* stop until all store operations complete */
 #define _all_e		0x2	/* stop until prev. operations issue all exceptions */
 #define _all_c		0x1	/* stop until prev. operations complete */
+
+#if !defined CONFIG_E2K_MACHINE || \
+    defined CONFIG_E2K_ES2_DSP || defined CONFIG_E2K_ES2_RU || \
+    (defined CONFIG_E2K_E2S && defined CONFIG_NUMA)
+# define WORKAROUND_WAIT_HWBUG(num) (((num) & (_st_c | _all_c | _sas)) ? \
+						((num) | _ma_c) : (num))
+#else
+# define WORKAROUND_WAIT_HWBUG(num)	num
+#endif
+
+#ifndef __ASSEMBLY__
+/* We use a static inline function instead of a macro
+ * because otherwise the preprocessed files size will
+ * increase tenfold making compile times much worse. */
+__attribute__((__always_inline__))
+static inline void __E2K_WAIT(int _num)
+{
+	int unused, num = WORKAROUND_WAIT_HWBUG(_num);
+	instr_cs1_t cs1 = {
+		.opc = CS1_OPC_WAIT,
+		.param = num
+	};
+
+	/* Use "asm volatile" around tricky barriers such as _ma_c, _fl_c, etc */
+	if (_num & ~(_st_c | _ld_c | _sas | _sal | _las | _lal | _mt))
+		asm volatile ("" ::: "memory");
+
+	/* Header dependency hell, cannot use here:
+	 *   cpu_has(CPU_HWBUG_SOFT_WAIT_E8C2)
+	 * so just check straight for E8C2 */
+	if (IS_ENABLED(CONFIG_CPU_E8C2) && (num & (_sas | _sal)))
+		asm ("{nop}" ::: "memory");
+
+	/* CPU_NO_HWBUG_SOFT_WAIT: use faster workaround for "lal" barriers */
+	if (_num == (_ld_c | _lal) || _num == (_ld_c | _lal | _mt)) {
+#pragma no_asm_inline
+		asm NOT_VOLATILE (ALTERNATIVE(
+			/* Default version - add "nop 5" after and a separate
+			 * wide instruction before the barrier. */
+				"{nop}"
+				".word 0x00008281\n"
+				".word %[cs1]\n",
+			/* CPU_NO_HWBUG_SOFT_WAIT version */
+				".word 0x00008011\n"
+				".word %[cs1]\n"
+				".word 0x0\n"
+				".word 0x0\n",
+			%[facility])
+			: "=r" (unused)
+			: [cs1] "i" (cs1.word),
+			  [facility] "i" (CPU_NO_HWBUG_SOFT_WAIT)
+			: "memory");
+	} else {
+		instr_cs1_t cs1_no_soft_barriers = {
+			.opc = CS1_OPC_WAIT,
+			.param = num & ~(_lal | _las | _sal | _sas)
+		};
+		/* #79245 - use .word to encode relaxed barriers */
+#pragma no_asm_inline
+		asm NOT_VOLATILE (ALTERNATIVE(
+			/* Default version */
+				".word 0x00008001\n"
+				".word %[cs1_no_soft_barriers]\n",
+			/* CPU_NO_HWBUG_SOFT_WAIT version - use soft barriers */
+				".word 0x00008001\n"
+				".word %[cs1]\n",
+			%[facility])
+			: "=r" (unused)
+			: [cs1] "i" (cs1.word),
+			  [cs1_no_soft_barriers] "i" (cs1_no_soft_barriers.word),
+			  [facility] "i" (CPU_NO_HWBUG_SOFT_WAIT)
+			: "memory");
+	}
+
+	/* Use "asm volatile" around tricky barriers such as _ma_c, _fl_c, etc */
+	if (_num & ~(_st_c | _ld_c | _sas | _sal | _las | _lal | _mt))
+		asm volatile ("" ::: "memory");
+}
+#endif
+
+#define E2K_WAIT(num) \
+do { \
+	__E2K_WAIT(num); \
+	if (num & (_st_c | _ld_c | _all_c | _ma_c)) \
+		NATIVE_HWBUG_AFTER_LD_ACQ(); \
+} while (0)
 
 /*
  * IMPORTANT NOTE!!!
@@ -5060,15 +5080,19 @@ static inline void E2K_SET_USER_STACK(int x)
 
 #ifdef CONFIG_SMP
 # define SMP_ONLY(...) __VA_ARGS__
+# define NOT_SMP_ONLY(...)
 #else
 # define SMP_ONLY(...)
+# define NOT_SMP_ONLY(...) __VA_ARGS__
 #endif
 
-#ifdef CONFIG_CPU_HAS_FILL_INSTRUCTION
-# define NATIVE_FILL_HARDWARE_STACKS() \
-		asm volatile ("{fillc; fillr}" ::: "memory")
-#else
-# define NATIVE_FILL_HARDWARE_STACKS() \
+#define NATIVE_FILL_HARDWARE_STACKS__HW() \
+do { \
+	/* "{fillc; fillr}" */ \
+	_Pragma("no_asm_inline") \
+	asm volatile (".word 0x00008001; .word 0x7000000c" ::: "memory"); \
+} while (0)
+#define NATIVE_FILL_HARDWARE_STACKS__SW() \
 do { \
 	asm volatile ( \
 		"{\n" \
@@ -5106,8 +5130,14 @@ do { \
 				   offsetof(struct task_struct, thread_info)),) \
 		   [task_ti_offset] "i" (offsetof(struct task_struct, thread_info)) \
 		: "ctpr1", "ctpr3", "memory"); \
+	/* If CPU supports only FILLC but not FILLR, then we use the return \
+	 * trick above to fill RF and FILLC instruction to fill CF. */ \
+	if (cpu_has(CPU_FEAT_FILLC)) { \
+		/* "{fillc}" */ \
+		_Pragma("no_asm_inline") \
+		asm volatile (".word 0x00008001; .word 0x70000008" ::: "memory"); \
+	} \
 } while (0)
-#endif
 
 #ifndef	__ASSEMBLY__
 
@@ -5354,10 +5384,18 @@ do { \
 		__E2K_JUMP_FUNC_WITH_ARGUMENTS_8(FUNC_TO_NAME(func), \
 				arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8)
 
+#ifdef CONFIG_CPU_HWBUG_IBRANCH
+# define WORKAROUND_IBRANCH_HWBUG "{nop} {nop} \n"
+#else
+# define WORKAROUND_IBRANCH_HWBUG
+#endif
+
 #define E2K_GOTO_ARG0(func) \
 do { \
 	_Pragma("no_asm_inline") \
-	asm volatile ("ibranch " #func "\n" :: ); \
+	asm volatile ("{ibranch " #func "}\n" \
+		      WORKAROUND_IBRANCH_HWBUG \
+		      :: ); \
 } while (0)
 #define E2K_GOTO_ARG1(label, arg1)					\
 do {									\
@@ -5367,6 +5405,7 @@ _Pragma("no_asm_inline")						\
 		"addd \t 0, %0, %%dr0\n"				\
 		"ibranch \t" #label "\n"				\
 		"}\n"							\
+		WORKAROUND_IBRANCH_HWBUG				\
 		:							\
 		: "ri" ((__e2k_u64_t) (arg1))				\
 	);								\
@@ -5380,6 +5419,7 @@ _Pragma("no_asm_inline")						\
 		"addd \t 0, %1, %%dr1\n"				\
 		"ibranch \t" #label "\n"				\
 		"}\n"							\
+		WORKAROUND_IBRANCH_HWBUG				\
 		:							\
 		: "ri" ((__e2k_u64_t) (arg1)),				\
 		  "ri" ((__e2k_u64_t) (arg2))				\
@@ -5395,6 +5435,7 @@ _Pragma("no_asm_inline")						\
 		"addd \t 0, %2, %%dr2\n"				\
 		"ibranch \t" #label "\n"				\
 		"}\n"							\
+		WORKAROUND_IBRANCH_HWBUG				\
 		:							\
 		: "ri" ((__e2k_u64_t) (arg1)),				\
 		  "ri" ((__e2k_u64_t) (arg2)),				\
@@ -5412,6 +5453,7 @@ _Pragma("no_asm_inline")						\
 		"addd \t 0, %3, %%dr3\n"				\
 		"ibranch \t" #label "\n"				\
 		"}\n"							\
+		WORKAROUND_IBRANCH_HWBUG				\
 		:							\
 		: "ri" ((__e2k_u64_t) (arg1)),				\
 		  "ri" ((__e2k_u64_t) (arg2)),				\
@@ -5419,10 +5461,9 @@ _Pragma("no_asm_inline")						\
 		  "ri" ((__e2k_u64_t) (arg4))				\
 	);								\
 } while (false)
-#define E2K_GOTO_AND_RETURN_ARG6(label,				\
-		arg1, arg2, arg3, arg4, arg5, arg6)			\
+#define E2K_GOTO_ARG7(label, arg1, arg2, arg3, arg4, arg5, arg6, arg7)	\
 do {									\
-_Pragma("no_asm_inline")						\
+	_Pragma("no_asm_inline")					\
 	asm volatile ("\n"						\
 		"{\n"							\
 		"addd \t 0, %0, %%dr0\n"				\
@@ -5433,8 +5474,8 @@ _Pragma("no_asm_inline")						\
 		"addd \t 0, %5, %%dr5\n"				\
 		"}\n"							\
 		"{\n"							\
-		"rrd  \t %%nip, %%dr6\n"				\
-		"ibranch \t" #label					\
+		"addd \t 0, %6, %%dr6\n"				\
+		"ibranch \t" #label "\n"				\
 		"}\n"							\
 		:							\
 		: "ri" ((__e2k_u64_t) (arg1)),				\
@@ -5442,7 +5483,107 @@ _Pragma("no_asm_inline")						\
 		  "ri" ((__e2k_u64_t) (arg3)),				\
 		  "ri" ((__e2k_u64_t) (arg4)),				\
 		  "ri" ((__e2k_u64_t) (arg5)),				\
-		  "ri" ((__e2k_u64_t) (arg6))				\
+		  "ri" ((__e2k_u64_t) (arg6)),				\
+		  "ri" ((__e2k_u64_t) (arg7))				\
+		: "r0", "r1", "r2", "r3", "r4", "r5", "r6"		\
+	);								\
+} while (false)
+#define E2K_SCALL_ARG7(trap_num, ret, sys_num, arg1, arg2, arg3,	\
+			arg4, arg5, arg6)				\
+do {									\
+	_Pragma("no_asm_inline")					\
+	asm volatile ("\n"						\
+		"{\n"							\
+		"addd \t 0, %[_sys_num], %%db[0]\n"			\
+		"addd \t 0, %[_arg1], %%db[1]\n"			\
+		"addd \t 0, %[_arg2], %%db[2]\n"			\
+		"addd \t 0, %[_arg3], %%db[3]\n"			\
+		"addd \t 0, %[_arg4], %%db[4]\n"			\
+		"addd \t 0, %[_arg5], %%db[5]\n"			\
+		"}\n"							\
+		"{\n"							\
+		"addd \t 0, %[_arg6], %%db[6]\n"			\
+		"sdisp \t %%ctpr1, 0x"#trap_num"\n"			\
+		"}\n"							\
+		"{\n"							\
+		"call %%ctpr1, wbs = %#\n"				\
+		"}\n"							\
+		"{\n"							\
+		"addd,0,sm 0x0, %%db[0], %[_ret]\n"			\
+		"}\n"							\
+		: [_ret] "=r" (ret)					\
+		: [_sys_num] "ri" ((__e2k_u64_t) (sys_num)),		\
+		  [_arg1] "ri" ((__e2k_u64_t) (arg1)),			\
+		  [_arg2] "ri" ((__e2k_u64_t) (arg2)),			\
+		  [_arg3] "ri" ((__e2k_u64_t) (arg3)),			\
+		  [_arg4] "ri" ((__e2k_u64_t) (arg4)),			\
+		  [_arg5] "ri" ((__e2k_u64_t) (arg5)),			\
+		  [_arg6] "ri" ((__e2k_u64_t) (arg6))			\
+		: "b[0]", "b[1]", "b[2]", "b[3]", "b[4]", "b[5]",	\
+		  "b[6]", "ctpr1"					\
+	);								\
+} while (false)
+#define E2K_GOTO_AND_RETURN_ARG6(label,				\
+		arg1, arg2, arg3, arg4, arg5, arg6)			\
+do {									\
+	_Pragma("no_asm_inline")					\
+	asm volatile ("\n"						\
+		"{\n"							\
+		"addd \t 0, %1, %%dr1\n"				\
+		"addd \t 0, %2, %%dr2\n"				\
+		"addd \t 0, %3, %%dr3\n"				\
+		"addd \t 0, %4, %%dr4\n"				\
+		"addd \t 0, %5, %%dr5\n"				\
+		"addd \t 0, %6, %%dr6\n"				\
+		"}\n"							\
+		"{\n"							\
+		"addd \t 0, %0, %%dr0\n"				\
+		"ibranch \t" #label "\n"				\
+		"}\n"							\
+		WORKAROUND_IBRANCH_HWBUG				\
+		:							\
+		: "i" ((__e2k_u64_t) (arg1)),				\
+		  "ri" ((__e2k_u64_t) (arg2)),				\
+		  "ri" ((__e2k_u64_t) (arg3)),				\
+		  "ri" ((__e2k_u64_t) (arg4)),				\
+		  "ri" ((__e2k_u64_t) (arg5)),				\
+		  "ri" ((__e2k_u64_t) (arg6)),				\
+		  "ri" ((__e2k_u64_t) (arg7))				\
+	);								\
+} while (false)
+#define E2K_SCALL_ARG7(trap_num, ret, sys_num, arg1, arg2, arg3,	\
+			arg4, arg5, arg6)				\
+do {									\
+	_Pragma("no_asm_inline")					\
+	asm volatile ("\n"						\
+		"{\n"							\
+		"addd \t 0, %[_sys_num], %%db[0]\n"			\
+		"addd \t 0, %[_arg1], %%db[1]\n"			\
+		"addd \t 0, %[_arg2], %%db[2]\n"			\
+		"addd \t 0, %[_arg3], %%db[3]\n"			\
+		"addd \t 0, %[_arg4], %%db[4]\n"			\
+		"addd \t 0, %[_arg5], %%db[5]\n"			\
+		"}\n"							\
+		"{\n"							\
+		"addd \t 0, %[_arg6], %%db[6]\n"			\
+		"sdisp \t %%ctpr1, 0x"#trap_num"\n"			\
+		"}\n"							\
+		"{\n"							\
+		"call %%ctpr1, wbs = %#\n"				\
+		"}\n"							\
+		"{\n"							\
+		"addd,0,sm 0x0, %%db[0], %[_ret]\n"			\
+		"}\n"							\
+		: [_ret] "=r" (ret)					\
+		: [_sys_num] "ri" ((__e2k_u64_t) (sys_num)),		\
+		  [_arg1] "ri" ((__e2k_u64_t) (arg1)),			\
+		  [_arg2] "ri" ((__e2k_u64_t) (arg2)),			\
+		  [_arg3] "ri" ((__e2k_u64_t) (arg3)),			\
+		  [_arg4] "ri" ((__e2k_u64_t) (arg4)),			\
+		  [_arg5] "ri" ((__e2k_u64_t) (arg5)),			\
+		  [_arg6] "ri" ((__e2k_u64_t) (arg6))			\
+		: "b[0]", "b[1]", "b[2]", "b[3]", "b[4]", "b[5]",	\
+		  "b[6]", "ctpr1"					\
 	);								\
 } while (false)
 #define E2K_COND_GOTO(label, cond, pred_no)				\
@@ -5453,6 +5594,7 @@ _Pragma("no_asm_inline")						\
 		"\n{"							\
 		"\nibranch \t" #label " ? ~%%pred" #pred_no		\
 		"\n}"							\
+		WORKAROUND_IBRANCH_HWBUG				\
 		:							\
 		: "ri" ((__e2k_u32_t) (cond))				\
 		: "pred" #pred_no					\
@@ -5467,6 +5609,7 @@ _Pragma("no_asm_inline")						\
 		"\naddd \t 0, %1, %%dr0 ? ~%%pred" #pred_no		\
 		"\nibranch \t" #label " ? ~%%pred" #pred_no		\
 		"\n}"							\
+		WORKAROUND_IBRANCH_HWBUG				\
 		:							\
 		: "ri" ((__e2k_u32_t) (cond)),				\
 		  "ri" ((__e2k_u64_t) (arg1))				\
@@ -5483,6 +5626,7 @@ _Pragma("no_asm_inline")						\
 		"\naddd \t 0, %2, %%dr1 ? ~%%pred" #pred_no		\
 		"\nibranch \t" #label " ? ~%%pred" #pred_no		\
 		"\n}"							\
+		WORKAROUND_IBRANCH_HWBUG				\
 		:							\
 		: "ri" ((__e2k_u32_t) (cond)),				\
 		  "ri" ((__e2k_u64_t) (arg1)),				\
@@ -6875,6 +7019,62 @@ do { \
 		      "{call %%ctpr2, wbs=%#}\n" \
 		      ::: "call"); \
 } while (0)
+
+/*
+ * Arithmetic operations that are atomic with regard to interrupts.
+ * I.e. an interrupt can arrive only before or after the operation.
+ */
+#define E2K_INSFD_ATOMIC(src1, src2, src3_dst) \
+do { \
+	_Pragma("no_asm_inline") \
+	asm ("insfd %[new_value], %[insf_params], %[reg], %[reg]" \
+	     : [reg] "+r" (src3_dst) \
+	     : [insf_params] "i" (src2), \
+	       [new_value] "ir" (src1)); \
+} while (0)
+
+#define E2K_ADDD_ATOMIC(src1_dst, src2) \
+do { \
+	_Pragma("no_asm_inline") \
+	asm ("addd %[reg], %[val], %[reg]" \
+	     : [reg] "+r" (src1_dst) \
+	     : [val] "ir" (src2)); \
+} while (0)
+
+#define E2K_SUBD_ATOMIC(src1_dst, src2) \
+do { \
+	_Pragma("no_asm_inline") \
+	asm ("subd %[reg], %[val], %[reg]" \
+	     : [reg] "+r" (src1_dst) \
+	     : [val] "ir" (src2)); \
+} while (0)
+
+#define E2K_SUBD_ATOMIC__SHRD32(src1_dst, src2, _old) \
+do { \
+	asm ("{subd %[reg], %[val], %[reg]\n" \
+	     " shrd %[reg], 32, %[old]}" \
+	     : [reg] "+r" (src1_dst), \
+	       [old] "=r" (_old) \
+	     : [val] "i" (src2)); \
+} while (0)
+
 #endif /* __ASSEMBLY__ */
+
+#define DECOMPRESSOR_READ_CORE_MODE() \
+({ \
+	e2k_core_mode_t __core_mode; \
+	register u64 __value asm("b[0]"); \
+ \
+	/* Cannot use "rrd %core_mode" here since the file is compiled \
+	 * for generic architecture so use hard-coded read */ \
+	_Pragma("no_asm_inline") \
+	asm (".word 0x04100011\n" \
+	     ".word 0x3f04c000\n" \
+	     ".word 0x01c00000\n" \
+	     ".word 0x00000000\n" \
+	     : "=r" (__value) ::); \
+	__core_mode.word = __value; \
+	__core_mode; \
+})
 
 #endif /* _E2K_API_H_ */

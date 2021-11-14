@@ -536,33 +536,15 @@ typedef dcache_addr_t	dcache_l2_addr_t;
 typedef	e2k_addr_t			flush_op_t;
 #endif	/* ! __ASSEMBLY__ */
 
-#define	flush_op_val(flush_op)		(flush_op)
+#define FLUSH_OP_TYPE			ULL(7)	/* type of operation */
+#define	FLUSH_ICACHE_LINE_USER_OP	ULL(0)
+#define	FLUSH_TLB_PAGE_OP		ULL(1)
+#define	FLUSH_ICACHE_LINE_SYS_OP	ULL(2)
+#define	FLUSH_TLB_PAGE_TLU_CACHE_OP	ULL(3)
 
-#define	__flush_op(flush_op_val)	(flush_op_val)
-
-#define _FLUSH_OP_TYPE			0x0000000000000007	/* type of */
-								/* operation */
-#define	_FLUSH_ICACHE_LINE_USER_OP	0x0000000000000000
-#define	_FLUSH_TLB_PAGE_SYS_OP		0x0000000000000001
-#define	_FLUSH_ICACHE_LINE_SYS_OP	0x0000000000000002
-
-#define	flush_op_get_type(flush_op)	\
-		(flush_op_val(flush_op) & _FLUSH_OP_TYPE)
+#define	flush_op_get_type(flush_op)	((flush_op) & FLUSH_OP_TYPE)
 #define	flush_op_set_type(flush_op, type)	\
-		(__flush_op((flush_op_val(flush_op) & ~_FLUSH_OP_TYPE) | \
-		((type) & _FLUSH_OP_TYPE)))
-#define	flush_op_set_icache_line_user(flush_op)	\
-		flush_op_set_type(flush_op, _FLUSH_ICACHE_LINE_USER_OP)
-#define	flush_op_set_icache_line_sys(flush_op)	\
-		flush_op_set_type(flush_op, _FLUSH_ICACHE_LINE_SYS_OP)
-#define	flush_op_set_tlb_page_sys(flush_op)	\
-		flush_op_set_type(flush_op, _FLUSH_TLB_PAGE_SYS_OP)
-#define	_flush_op_icache_line_user	((long)_FLUSH_ICACHE_LINE_USER_OP)
-#define	_flush_op_icache_line_sys	((long)_FLUSH_ICACHE_LINE_SYS_OP)
-#define	_flush_op_tlb_page_sys		((long)_FLUSH_TLB_PAGE_SYS_OP)
-#define	flush_op_icache_line_user	__flush_op(_flush_op_icache_line_user)
-#define	flush_op_icache_line_sys	__flush_op(_flush_op_icache_line_sys)
-#define	flush_op_tlb_page_sys		__flush_op(_flush_op_tlb_page_sys)
+		(((flush_op) & ~FLUSH_OP_TYPE) | ((type) & FLUSH_OP_TYPE))
 
 /* ICACHE/DTLB/ITLB line flush extended virtual address structure */
 
@@ -570,60 +552,30 @@ typedef	e2k_addr_t			flush_op_t;
 typedef	e2k_addr_t			flush_addr_t;
 #endif	/* ! __ASSEMBLY__ */
 
-#define	flush_addr_val(flush_addr)	(flush_addr)
+#define	FLUSH_ADDR_CONTEXT_SHIFT ULL(50)		/* [61:50] */
+#define FLUSH_ADDR_VA		ULL(0x0000ffffffffffff)	/* virtual address */
+#define FLUSH_ADDR_CONTEXT	ULL(0x3ffc000000000000)	/* context # */
+#define FLUSH_ADDR_ROOT		ULL(0x4000000000000000)	/* should be 0 */
+#define FLUSH_ADDR_PHYS		ULL(0x8000000000000000)	/* should be 0 */
 
-#define	__flush_addr(flush_addr_val)	(flush_addr_val)
-
-#define	_FLUSH_ADDR_CONTEXT_SHIFT	50	/* [61:50] */
-
-#define _FLUSH_ADDR_VA		0x0000ffffffffffff	/* virtual address */
-							/* [47: 0] */
-#define _FLUSH_ADDR_CONTEXT	0x3ffc000000000000	/* context # */
-#define _FLUSH_ADDR_ROOT	0x4000000000000000	/* should be 0 */
-#define _FLUSH_ADDR_PHYS	0x8000000000000000	/* should be 0 */
-
-#define	FLUSH_VADDR_TO_VA(virt_addr)	((virt_addr) & _FLUSH_ADDR_VA)
-
-#define _FLUSH_ADDR_KERNEL(virt_addr)	(FLUSH_VADDR_TO_VA(virt_addr) | \
-		((long)E2K_KERNEL_CONTEXT << _FLUSH_ADDR_CONTEXT_SHIFT))
-
-#define	FLUSH_ADDR_KERNEL(virt_addr) \
-		__flush_addr(_FLUSH_ADDR_KERNEL(virt_addr))
-
-#define	flush_addr_get_va(flush_addr)	\
-		(flush_addr_val(flush_addr) & _FLUSH_ADDR_VA)
-#define	flush_addr_set_va(flush_addr, virt_addr)	\
-		(__flush_addr((flush_addr_val(flush_addr) & ~_FLUSH_ADDR_VA) | \
-		((va_page) & _FLUSH_ADDR_VA)))
+#define	FLUSH_VADDR_TO_VA(virt_addr)	((virt_addr) & FLUSH_ADDR_VA)
 
 #define	flush_addr_get_pid(flush_addr)	\
-		((flush_addr_val(flush_addr) & _FLUSH_ADDR_CONTEXT) >> \
-			_FLUSH_ADDR_CONTEXT_SHIFT)
-#define	flush_addr_get_context(flush_addr)	\
-		(flush_addr_val(flush_addr) & _FLUSH_ADDR_CONTEXT)
-#define	flush_addr_set_context(flush_addr, context)	\
-		(__flush_addr((flush_addr_val(flush_addr) & \
-		~_FLUSH_ADDR_CONTEXT) | \
-		((long)(context) << _FLUSH_ADDR_CONTEXT_SHIFT) & \
-		_FLUSH_ADDR_CONTEXT))
+		(((flush_addr) & FLUSH_ADDR_CONTEXT) >> FLUSH_ADDR_CONTEXT_SHIFT)
 #define	_flush_addr_make_sys(virt_addr, context, root)			\
 ({									\
 	e2k_addr_t __addr_val = FLUSH_VADDR_TO_VA(virt_addr);		\
-	__addr_val |= (((long)(context) <<				\
-			_FLUSH_ADDR_CONTEXT_SHIFT) &			\
-				_FLUSH_ADDR_CONTEXT);			\
+	__addr_val |= (((long)(context) << FLUSH_ADDR_CONTEXT_SHIFT) &	\
+				FLUSH_ADDR_CONTEXT);			\
 	if (root)							\
-		__addr_val |= _FLUSH_ADDR_ROOT;				\
+		__addr_val |= FLUSH_ADDR_ROOT;				\
 	__addr_val;							\
 })
-#define	_flush_addr_make_user(virt_addr) \
-		FLUSH_VADDR_TO_VA(virt_addr)
 #define	flush_addr_make_sys(virt_addr, context) \
-		__flush_addr(_flush_addr_make_sys(virt_addr, context, 0))
-#define	flush_addr_make_user(virt_addr) \
-		__flush_addr(_flush_addr_make_user(virt_addr))
+		_flush_addr_make_sys((virt_addr), (context), 0)
+#define	flush_addr_make_user(virt_addr)		FLUSH_VADDR_TO_VA(virt_addr)
 #define	flush_addr_make_ss(virt_addr, context) \
-		__flush_addr(_flush_addr_make_sys(virt_addr, context, 1))
+		_flush_addr_make_sys((virt_addr), (context), 1)
 
 /*
  * CACHE(s) flush operations
@@ -644,14 +596,8 @@ typedef	e2k_addr_t			flush_addr_t;
 		flush_op_set_type(flush_op, _FLUSH_WRITE_BACK_CACHE_L12_OP)
 #define	flush_op_set_cache_all(flush_op)		\
 		flush_op_set_write_back_cache_L12(flush_op)
-#define	_flush_op_invalidate_cache_L12	((long)_FLUSH_INVALIDATE_CACHE_L12_OP)
-#define	_flush_op_write_back_cache_L12	((long)_FLUSH_WRITE_BACK_CACHE_L12_OP)
-#define	_flush_op_cache_all		_flush_op_write_back_cache_L12
-#define	flush_op_invalidate_cache_L12 \
-		__flush_op(_flush_op_invalidate_cache_L12)
-#define	flush_op_write_back_cache_L12 \
-		__flush_op(_flush_op_write_back_cache_L12)
-#define	flush_op_cache_all		flush_op_write_back_cache_L12
+#define	flush_op_invalidate_cache_L12	((long)_FLUSH_INVALIDATE_CACHE_L12_OP)
+#define	flush_op_write_back_cache_L12	((long)_FLUSH_WRITE_BACK_CACHE_L12_OP)
 
 /*
  * ICACHE/TLB flush operations
@@ -666,10 +612,8 @@ typedef	e2k_addr_t			flush_addr_t;
 		flush_op_set_type(flush_op, _FLUSH_ICACHE_ALL_OP)
 #define	flush_op_set_tlb_all(flush_op)	\
 		flush_op_set_type(flush_op, _FLUSH_TLB_ALL_OP)
-#define	_flush_op_icache_all		((long)_FLUSH_ICACHE_ALL_OP)
-#define	_flush_op_tlb_all		((long)_FLUSH_TLB_ALL_OP)
-#define	flush_op_icache_all		__flush_op(_flush_op_icache_all)
-#define	flush_op_tlb_all		__flush_op(_flush_op_tlb_all)
+#define	flush_op_icache_all		((long)_FLUSH_ICACHE_ALL_OP)
+#define	flush_op_tlb_all		((long)_FLUSH_TLB_ALL_OP)
 
 
 /*
@@ -839,7 +783,7 @@ typedef	union {
 		u64 sf0   : 1;
 		u64 hw0   : 1;
 		u64 t0    : 1;
-		u64 __x0  : 1;
+		u64       : 1;
 		u64 v1    : 1;
 		u64 root1 : 1;
 		u64 rw1   : 2;
@@ -850,7 +794,7 @@ typedef	union {
 		u64 sf1   : 1;
 		u64 hw1   : 1;
 		u64 t1    : 1;
-		u64 __x1  : 1;
+		u64       : 1;
 		u64 v2    : 1;
 		u64 root2 : 1;
 		u64 rw2   : 2;
@@ -861,7 +805,7 @@ typedef	union {
 		u64 sf2   : 1;
 		u64 hw2   : 1;
 		u64 t2    : 1;
-		u64 __x2  : 1;
+		u64       : 1;
 		u64 v3    : 1;
 		u64 root3 : 1;
 		u64 rw3   : 2;
@@ -872,56 +816,9 @@ typedef	union {
 		u64 sf3   : 1;
 		u64 hw3   : 1;
 		u64 t3    : 1;
-		u64 __x3  : 1;
+		u64       : 1;
 		u64 gm    : 1;
 	};
-	struct {
-		u64 v0    : 1;
-		u64 root0 : 1;
-		u64 rw0   : 2;
-		u64 lng0  : 3;
-		u64 sync0 : 1;
-		u64 spec0 : 1;
-		u64 ap0   : 1;
-		u64 sf0   : 1;
-		u64 hw0   : 1;
-		u64 t0    : 1;
-		u64 __x0  : 1;
-		u64 v1    : 1;
-		u64 root1 : 1;
-		u64 rw1   : 2;
-		u64 lng1  : 3;
-		u64 sync1 : 1;
-		u64 spec1 : 1;
-		u64 ap1   : 1;
-		u64 sf1   : 1;
-		u64 hw1   : 1;
-		u64 t1    : 1;
-		u64 __x1  : 1;
-		u64 v2    : 1;
-		u64 root2 : 1;
-		u64 rw2   : 2;
-		u64 lng2  : 3;
-		u64 sync2 : 1;
-		u64 spec2 : 1;
-		u64 ap2   : 1;
-		u64 sf2   : 1;
-		u64 hw2   : 1;
-		u64 t2    : 1;
-		u64 __x2  : 1;
-		u64 v3    : 1;
-		u64 root3 : 1;
-		u64 rw3   : 2;
-		u64 lng3  : 3;
-		u64 sync3 : 1;
-		u64 spec3 : 1;
-		u64 ap3   : 1;
-		u64 sf3   : 1;
-		u64 hw3   : 1;
-		u64 t3    : 1;
-		u64 __x3  : 1;
-		u64 gm    : 1;
-	} fields;
 	u64 word;
 } e2k_ddbcr_t;
 #define	DDBCR_reg	word

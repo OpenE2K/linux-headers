@@ -19,7 +19,6 @@
 
 #include <linux/types.h>
 #include <linux/kernel.h>
-#include <asm/alternative.h>
 #include <asm/cpu_regs_types.h>
 #include <asm/e2k_api.h>
 #include <asm/aau_regs_types.h>
@@ -137,7 +136,7 @@ static __always_inline void native_write_aasr_reg_value(u32 reg_value)
 {
 	NATIVE_SET_AAU_AASR(reg_value);
 }
-static inline u32 native_read_aafstr_reg_value(void)
+static __always_inline u32 native_read_aafstr_reg_value(void)
 {
 	return NATIVE_GET_AAU_AAFSTR();
 }
@@ -1165,7 +1164,8 @@ native_write_aaldas_reg_value(int AALDAs_no, u32 l_value, u32 r_value)
 		r_value = 0;
 	}
 }
-static inline void native_read_aaldm_reg_value(u32 *lo_value, u32 *hi_value)
+static __always_inline void native_read_aaldm_reg_value(u32 *lo_value,
+		u32 *hi_value)
 {
 	u32 value1, value2;
 
@@ -1174,19 +1174,20 @@ static inline void native_read_aaldm_reg_value(u32 *lo_value, u32 *hi_value)
 	*hi_value = value2;
 }
 static __always_inline void native_write_aaldm_reg_value(u32 lo_value,
-						u32 hi_value)
+		u32 hi_value)
 {
 	NATIVE_SET_AAU_AALDM(lo_value, hi_value);
 }
-static inline void native_read_aaldm_reg(e2k_aaldm_t *aaldm)
+static __always_inline void native_read_aaldm_reg(e2k_aaldm_t *aaldm)
 {
 	native_read_aaldm_reg_value(&aaldm->lo, &aaldm->hi);
 }
-static __always_inline void native_write_aaldm_reg(e2k_aaldm_t *aaldm)
+static __always_inline void native_write_aaldm_reg(e2k_aaldm_t aaldm)
 {
-	native_write_aaldm_reg_value(aaldm->lo, aaldm->hi);
+	native_write_aaldm_reg_value(aaldm.lo, aaldm.hi);
 }
-static inline void native_read_aaldv_reg_value(u32 *lo_value, u32 *hi_value)
+static __always_inline void native_read_aaldv_reg_value(u32 *lo_value,
+		u32 *hi_value)
 {
 	u32 value1, value2;
 
@@ -1195,17 +1196,17 @@ static inline void native_read_aaldv_reg_value(u32 *lo_value, u32 *hi_value)
 	*hi_value = value2;
 }
 static __always_inline void native_write_aaldv_reg_value(u32 lo_value,
-						u32 hi_value)
+		u32 hi_value)
 {
 	NATIVE_SET_AAU_AALDV(lo_value, hi_value);
 }
-static inline void native_read_aaldv_reg(e2k_aaldv_t *aaldv)
+static __always_inline void native_read_aaldv_reg(e2k_aaldv_t *aaldv)
 {
 	native_read_aaldv_reg_value(&aaldv->lo, &aaldv->hi);
 }
-static __always_inline void native_write_aaldv_reg(e2k_aaldv_t *aaldv)
+static __always_inline void native_write_aaldv_reg(e2k_aaldv_t aaldv)
 {
-	native_write_aaldv_reg_value(aaldv->lo, aaldv->hi);
+	native_write_aaldv_reg_value(aaldv.lo, aaldv.hi);
 }
 
 static inline void native_read_aad_reg(int AAD_no, e2k_aadj_t *mem_p)
@@ -1449,7 +1450,7 @@ static __always_inline void native_read_aads_4_reg(int AADs_no, e2k_aadj_t *mem_
 }
 
 static __always_inline void native_write_aads_4_reg(int AADs_no,
-						e2k_aadj_t *mem_p)
+		e2k_aadj_t *mem_p)
 {
 	switch (AADs_no) {
 	case  0:

@@ -467,6 +467,8 @@ typedef struct kvm_guest_nbsr_state {
 						/* paravirtualized guest */
 						/* (same as ttable #0) */
 
+#define GUEST_FAST_SYSCALL_TRAP_NUM	6
+
 #ifndef __ASSEMBLY__
 
 #define KVM_GET_ARCH_API_VERSION	_IO(KVMIO, 0xe1)

@@ -246,6 +246,10 @@ static inline unsigned long generic_hypercall6(unsigned long nr,
 #define	KVM_HCALL_SWITCH_TO_EXPANDED_PROC_STACK	31
 /* notify host kernel aboout switch to updated procedure chain stack on guest */
 #define	KVM_HCALL_SWITCH_TO_EXPANDED_CHAIN_STACK 32
+/* return back to guest user from fast syscall handler */
+#define KVM_HCALL_RETURN_FROM_FAST_SYSCALL	33
+/* change return ip in user stack */
+#define KVM_HCALL_SET_RETURN_USER_IP		34
 
 typedef struct kvm_hw_stacks_flush {
 	unsigned long psp_lo;
@@ -472,6 +476,19 @@ HYPERVISOR_switch_to_expanded_guest_chain_stack(long delta_size,
 			delta_size, delta_offset, (unsigned long)decr_gk_pcs);
 }
 
+static inline unsigned long
+HYPERVISOR_return_from_fast_syscall(long ret_val)
+{
+	return light_hypercall1(KVM_HCALL_RETURN_FROM_FAST_SYSCALL, ret_val);
+}
+
+static inline unsigned long
+HYPERVISOR_set_return_user_ip(u64 gti, u64 ip, int flags)
+{
+	return light_hypercall3(KVM_HCALL_SET_RETURN_USER_IP, gti,
+				ip, flags);
+}
+
 /*
  * KVM hypervisor (host) <-> guest generic hypercalls list
  */
@@ -487,6 +504,9 @@ HYPERVISOR_switch_to_expanded_guest_chain_stack(long delta_size,
 #define	KVM_HCALL_COMPLETE_LONG_JUMP	12	/* long jump completion */
 #define	KVM_HCALL_LAUNCH_SIG_HANDLER	14	/* launch guest user signal */
 						/* handler */
+#define	KVM_HCALL_APPLY_USD_BOUNDS	15	/* update user data */
+						/* stack pointers after stack */
+						/* bounds handling */
 #define	KVM_HCALL_SWITCH_TO_VIRT_MODE	16	/* switch from physical to */
 						/* virtual addresses mode */
 						/* (enable paging, TLB, TLU) */
@@ -895,6 +915,14 @@ HYPERVISOR_apply_pcsp_bounds(unsigned long base, unsigned long size,
 	return generic_hypercall5(KVM_HCALL_APPLY_PCSP_BOUNDS,
 				base, size, start, end, delta);
 }
+
+static inline unsigned long
+HYPERVISOR_apply_usd_bounds(unsigned long top, unsigned long delta, bool incr)
+{
+	return generic_hypercall3(KVM_HCALL_APPLY_USD_BOUNDS,
+				  top, delta, incr);
+}
+
 static inline unsigned long
 HYPERVISOR_correct_trap_return_ip(unsigned long return_ip)
 {

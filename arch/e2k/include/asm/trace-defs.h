@@ -2,6 +2,7 @@
 #define _E2K_TRACE_DEFS_H_
 
 #include <linux/types.h>
+#include <linux/hugetlb.h>
 
 #include <asm/mmu_types.h>
 #include <asm/pgtable_def.h>

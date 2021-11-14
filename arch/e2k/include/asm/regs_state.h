@@ -1201,6 +1201,7 @@ NATIVE_SWITCH_TO_KERNEL_STACK(e2k_addr_t ps_base, e2k_size_t ps_size,
 		e2k_addr_t pcs_base, e2k_size_t pcs_size,
 		e2k_addr_t ds_base, e2k_size_t ds_size)
 {
+	pcsp_struct_t pcsp = {{ 0 }};
 	e2k_rwap_lo_struct_t	reg_lo;
 	e2k_rwap_hi_struct_t	reg_hi;
 	e2k_rwap_lo_struct_t	stack_reg_lo;
@@ -1219,13 +1220,10 @@ NATIVE_SWITCH_TO_KERNEL_STACK(e2k_addr_t ps_base, e2k_size_t ps_size,
 	reg_hi.PSP_hi_size = ps_size;
 	reg_hi.PSP_hi_ind = 0;
 	NATIVE_NV_WRITE_PSP_REG(reg_hi, reg_lo);
-	reg_lo.PCSP_lo_half = 0;
-	reg_lo.PCSP_lo_base = pcs_base;
-	reg_lo._PCSP_lo_rw = E2K_PCSR_RW_PROTECTIONS;
-	reg_hi.PCSP_hi_half = 0;
-	reg_hi.PCSP_hi_size = pcs_size;
-	reg_hi.PCSP_hi_ind = 0;
-	NATIVE_NV_WRITE_PCSP_REG(reg_hi, reg_lo);
+	pcsp.base = pcs_base;
+	pcsp.size = pcs_size;
+	pcsp.rw = E2K_PCSR_RW_PROTECTIONS;
+	NATIVE_NV_WRITE_PCSP_REG(pcsp.hi, pcsp.lo);
 
 
 	/*

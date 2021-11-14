@@ -192,8 +192,7 @@
 })
 #define KVM_GET_AAU_AASTI_TAG()						\
 		GUEST_GET_AAU_SREG(aasti_tags)
-#define KVM_GET_AAU_AASR()						\
-		GUEST_GET_AAU_SREG(aasr)
+#define KVM_GET_AAU_AASR()	GUEST_GET_CPU_SREG(AASR)
 #define KVM_GET_AAU_AAFSTR()						\
 		GUEST_GET_AAU_SREG(aafstr)
 #define KVM_GET_AAU_AALDI(AALDI_no, lval, rval)				\
@@ -289,8 +288,7 @@ do { \
 })
 #define KVM_SET_AAU_AASTI_TAG(val)					\
 		GUEST_SET_AAU_SREG(aasti_tags, val)
-#define KVM_SET_AAU_AASR(val)						\
-		GUEST_SET_AAU_SREG(aasr, val)
+#define KVM_SET_AAU_AASR(val)	GUEST_SET_CPU_SREG(AASR, val)
 #define KVM_SET_AAU_AAFSTR(val)						\
 		GUEST_SET_AAU_SREG(aafstr, val)
 #define KVM_SET_AAU_AALDI(AALDI_no, lval, rval)				\
@@ -559,9 +557,9 @@ kvm_read_aaldm_reg(e2k_aaldm_t *aaldm)
 	kvm_read_aaldm_reg_value(&aaldm->lo, &aaldm->hi);
 }
 static inline void
-kvm_write_aaldm_reg(e2k_aaldm_t *aaldm)
+kvm_write_aaldm_reg(e2k_aaldm_t aaldm)
 {
-	kvm_write_aaldm_reg_value(aaldm->lo, aaldm->hi);
+	kvm_write_aaldm_reg_value(aaldm.lo, aaldm.hi);
 }
 static inline void
 kvm_read_aaldv_reg_value(u32 *lo_value, u32 *hi_value)
@@ -583,9 +581,9 @@ kvm_read_aaldv_reg(e2k_aaldv_t *aaldv)
 	kvm_read_aaldv_reg_value(&aaldv->lo, &aaldv->hi);
 }
 static inline void
-kvm_write_aaldv_reg(e2k_aaldv_t *aaldv)
+kvm_write_aaldv_reg(e2k_aaldv_t aaldv)
 {
-	kvm_write_aaldm_reg_value(aaldv->lo, aaldv->hi);
+	kvm_write_aaldm_reg_value(aaldv.lo, aaldv.hi);
 }
 
 static inline void
@@ -647,17 +645,17 @@ static inline void read_aaldm_reg(e2k_aaldm_t *aaldm)
 {
 	kvm_read_aaldm_reg_value(&aaldm->lo, &aaldm->hi);
 }
-static inline void write_aaldm_reg(e2k_aaldm_t *aaldm)
+static inline void write_aaldm_reg(e2k_aaldm_t aaldm)
 {
-	kvm_write_aaldm_reg_value(aaldm->lo, aaldm->hi);
+	kvm_write_aaldm_reg_value(aaldm.lo, aaldm.hi);
 }
 static inline void read_aaldv_reg(e2k_aaldv_t *aaldv)
 {
 	kvm_read_aaldv_reg_value(&aaldv->lo, &aaldv->hi);
 }
-static inline void write_aaldv_reg(e2k_aaldv_t *aaldv)
+static inline void write_aaldv_reg(e2k_aaldv_t aaldv)
 {
-	kvm_write_aaldm_reg_value(aaldv->lo, aaldv->hi);
+	kvm_write_aaldm_reg_value(aaldv.lo, aaldv.hi);
 }
 
 #define clear_apb()	kvm_clear_apb()

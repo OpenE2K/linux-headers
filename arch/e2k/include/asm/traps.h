@@ -150,6 +150,14 @@ native_host_apply_pcsp_delta_to_signal_stack(unsigned long base,
 	return 0;
 }
 
+static inline int
+native_host_apply_usd_delta_to_signal_stack(unsigned long top,
+					unsigned long delta, bool incr)
+{
+	/* native & host kernel cannot be paravirtualized guest */
+	return 0;
+}
+
 /*
  * MMIO page fault cannot occur on native or host mode,
  * so ignore such traps
@@ -213,6 +221,8 @@ extern int apply_psp_delta_to_signal_stack(unsigned long base,
 extern int apply_pcsp_delta_to_signal_stack(unsigned long base,
 		unsigned long size, unsigned long start, unsigned long end,
 		unsigned long delta);
+extern int apply_usd_delta_to_signal_stack(unsigned long top,
+					unsigned long delta, bool incr);
 
 static inline int host_apply_psp_delta_to_signal_stack(unsigned long base,
 			unsigned long size, unsigned long start,
@@ -228,6 +238,12 @@ static inline int host_apply_pcsp_delta_to_signal_stack(unsigned long base,
 {
 	return native_host_apply_pcsp_delta_to_signal_stack(base, size,
 							start, end, delta);
+}
+
+static inline int host_apply_usd_delta_to_signal_stack(unsigned long top,
+					unsigned long delta, bool incr)
+{
+	return native_host_apply_usd_delta_to_signal_stack(top, delta, incr);
 }
 
 static inline unsigned long

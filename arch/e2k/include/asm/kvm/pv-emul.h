@@ -127,7 +127,6 @@ extern void insert_pv_vcpu_sigreturn(struct kvm_vcpu *vcpu,
 extern void kvm_emulate_pv_vcpu_intc(struct thread_info *ti, pt_regs_t *regs,
 					trap_pt_regs_t *trap);
 extern void return_from_pv_vcpu_intc(struct thread_info *ti, pt_regs_t *regs);
-extern bool pv_vcpu_syscall_intc(thread_info_t *ti, pt_regs_t *regs);
 
 static inline bool kvm_vcpu_in_hypercall(struct kvm_vcpu *vcpu)
 {

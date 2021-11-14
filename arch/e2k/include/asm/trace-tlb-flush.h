@@ -58,7 +58,7 @@ TRACE_EVENT(
 );
 
 TRACE_EVENT(
-	mmu_pid_flush_tlb_address,
+	mmu_pid_flush_tlb_page,
 
 	TP_PROTO(int cpu_id, mm_context_t *context, e2k_addr_t addr,
 		 unsigned long old_pid, unsigned long new_pid

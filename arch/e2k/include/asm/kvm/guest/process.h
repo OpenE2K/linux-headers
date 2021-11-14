@@ -113,19 +113,18 @@ kvm_preserve_user_hw_stacks_to_copy(e2k_stacks_t *u_stacks,
 static __always_inline void
 kvm_jump_to_ttable_entry(struct pt_regs *regs, enum restore_caller from)
 {
-	if (from & FROM_SYSCALL_N_PROT) {
+	if (from & (FROM_SYSCALL_N_PROT | FROM_SIGRETURN | FROM_RET_FROM_FORK)) {
 		switch (regs->kernel_entry) {
 		case 1:
 		case 3:
 		case 4:
 			KVM_WRITE_UPSR_REG(E2K_KERNEL_UPSR_ENABLED);
-			regs->stack_regs_saved = true;
-			__E2K_JUMP_WITH_ARGUMENTS_8(handle_sys_call,
-					regs->sys_func,
-					regs->args[1], regs->args[2],
-					regs->args[3], regs->args[4],
-					regs->args[5], regs->args[6],
-					regs);
+			/*
+			 * Unconditional return to host with guest's return value,
+			 * because of only host can recover initial state of stacks
+			 * and some other registers state to restart system call
+			 */
+			E2K_SYSCALL_RETURN(regs->sys_rval);
 		default:
 			BUG();
 		}

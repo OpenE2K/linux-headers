@@ -398,22 +398,12 @@ pv_vcpu_user_hw_stacks_prepare(struct kvm_vcpu *vcpu, pt_regs_t *regs,
 			"set to 0x%x\n",
 			stacks->pcshtp);
 	} else if (!syscall && pcshtp == 0 && guest_user) {
-		e2k_pcsp_hi_t k_pcsp_hi;
-		unsigned long flags;
+		/* in this case the trampoline frame is added into the guest */
+		/* kernel chain stack */
 
 		/* set flag for unconditional injection to do not copy */
 		/* from guest user space */
 		regs->need_inject = true;
-
-		/* reserve one bottom frames for trampoline */
-		/* the guest handler replaces guest user trapped frame */
-		raw_all_irq_save(flags);
-		NATIVE_FLUSHC;
-		k_pcsp_hi = NATIVE_NV_READ_PCSP_HI_REG();
-		BUG_ON(k_pcsp_hi.PCSP_hi_ind);
-		k_pcsp_hi.PCSP_hi_ind += 1 * SZ_OF_CR;
-		NATIVE_NV_NOIRQ_WRITE_PCSP_HI_REG(k_pcsp_hi);
-		raw_all_irq_restore(flags);
 	}
 
 	/*

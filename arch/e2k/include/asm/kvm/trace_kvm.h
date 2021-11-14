@@ -796,9 +796,10 @@ TRACE_EVENT(
 TRACE_EVENT(
 	intc_aau,
 
-	TP_PROTO(const e2k_aau_t *aau_ctxt, u64 lsr, u64 lsr1, u64 ilcr, u64 ilcr1),
+	TP_PROTO(const e2k_aau_t *aau_ctxt, e2k_aasr_t aasr,
+			u64 lsr, u64 lsr1, u64 ilcr, u64 ilcr1),
 
-	TP_ARGS(aau_ctxt, lsr, lsr1, ilcr, ilcr1),
+	TP_ARGS(aau_ctxt, aasr, lsr, lsr1, ilcr, ilcr1),
 
 	TP_STRUCT__entry(
 		__field(	u32,	aasr )
@@ -829,7 +830,7 @@ TRACE_EVENT(
 	TP_fast_assign(
 		int i;
 
-		__entry->aasr = AW(aau_ctxt->guest_aasr);
+		__entry->aasr = AW(aasr);
 		__entry->lsr = lsr;
 		__entry->lsr1 = lsr1;
 		__entry->ilcr = ilcr;

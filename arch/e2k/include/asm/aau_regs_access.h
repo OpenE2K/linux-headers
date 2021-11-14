@@ -35,42 +35,49 @@
  */
 
 #define	PREFIX_SAVE_AAU_MASK_REGS(PV_TYPE, pv_type, aau_context, aasr)	\
-({									\
-	if (unlikely(AAU_ACTIVE(aasr))) {				\
-		/* As it turns out AAU can be in ACTIVE state		\
-		 * in interrupt handler (bug 53227 comment 28		\
-		 * and bug 53227 comment 36).				\
-		 * The hardware stops AAU automatically but		\
-		 * the value to be written should be corrected		\
-		 * to "stopped" so that the "DONE" instruction		\
-		 * works as expected.					\
-		 */							\
-		AS(aasr).lds = AASR_STOPPED;				\
+do {									\
+	if (aau_context) {						\
+		if (unlikely(AAU_STOPPED(aasr))) {			\
+			pv_type##_read_aaldv_reg(&(aau_context)->aaldv); \
+			pv_type##_read_aaldm_reg(&(aau_context)->aaldm); \
+		} else {						\
+			AW((aau_context)->aaldv) = 0;			\
+			AW((aau_context)->aaldm) = 0;			\
+		}							\
 	}								\
-	(aau_context)->aasr = aasr;					\
-	if (unlikely(AAU_STOPPED(aasr))) {				\
-		pv_type##_read_aaldv_reg(&(aau_context)->aaldv);	\
-		pv_type##_read_aaldm_reg(&(aau_context)->aaldm);	\
-	} else {							\
-		AW((aau_context)->aaldv) = 0;				\
-		AW((aau_context)->aaldm) = 0;				\
-	}								\
-})
+} while (0)
 
-#define	NATIVE_SAVE_AAU_MASK_REGS(aau_context, aasr)	\
+#define	NATIVE_SAVE_AAU_MASK_REGS(aau_context, aasr) \
 		PREFIX_SAVE_AAU_MASK_REGS(NATIVE, native, aau_context, aasr)
 
-#define	PREFIX_RESTORE_AAU_MASK_REGS(PV_TYPE, pv_type, aau_context)	\
+static inline e2k_aasr_t aasr_parse(e2k_aasr_t aasr)
+{
+	if (unlikely(AAU_ACTIVE(aasr))) {
+		/* As it turns out AAU can be in ACTIVE state
+		 * in interrupt handler (bug 53227 comment 28
+		 * and bug 53227 comment 36).
+		 * The hardware stops AAU automatically but
+		 * the value to be written should be corrected
+		 * to "stopped" so that the "DONE" instruction
+		 * works as expected.
+		 */
+		aasr.lds = AASR_STOPPED;
+	}
+
+	return aasr;
+}
+
+#define	PREFIX_RESTORE_AAU_MASK_REGS(PV_TYPE, pv_type, aaldm, aaldv, aasr) \
 ({									\
 	pv_type##_write_aafstr_reg_value(0);				\
-	pv_type##_write_aaldm_reg(&(aau_context)->aaldm);		\
-	pv_type##_write_aaldv_reg(&(aau_context)->aaldv);		\
+	pv_type##_write_aaldm_reg(aaldm);				\
+	pv_type##_write_aaldv_reg(aaldv);				\
 	/* aasr can be in 'ACTIVE' state, so we set it last */		\
-	pv_type##_write_aasr_reg((aau_context)->aasr);		\
+	pv_type##_write_aasr_reg(aasr);					\
 })
 
-#define	NATIVE_RESTORE_AAU_MASK_REGS(aau_context)	\
-		PREFIX_RESTORE_AAU_MASK_REGS(NATIVE, native, aau_context)
+#define	NATIVE_RESTORE_AAU_MASK_REGS(aaldm, aaldv, aasr) \
+		PREFIX_RESTORE_AAU_MASK_REGS(NATIVE, native, aaldm, aaldv, aasr)
 
 #define PREFIX_SAVE_AADS(PV_TYPE, pv_type, aau_regs)			\
 ({									\
@@ -491,74 +498,68 @@
  * It's taken that aasr was get earlier(from get_aau_context caller)
  * and comparison with aasr.iab was taken.
  */
-#define	PREFIX_GET_AAU_CONTEXT(PV_TYPE, pv_type, ISET, iset, aau_context) \
+#define	PREFIX_GET_AAU_CONTEXT(PV_TYPE, pv_type, ISET, iset, aau_context, aasr) \
 ({									\
-	/* get registers, which describe arrays in APB operations */	\
-	e2k_aasr_t aasr = (aau_context)->aasr;				\
-									\
 	/* get descriptors & auxiliary registers */			\
-	if (AS(aasr).iab)						\
-		PV_TYPE##_GET_ARRAY_DESCRIPTORS_##ISET(aau_context); \
+	if (aasr.iab)							\
+		PV_TYPE##_GET_ARRAY_DESCRIPTORS_##ISET(aau_context);	\
 									\
 	/* get synchronous part of APB */				\
-	if (AS(aasr).stb)						\
+	if (aasr.stb)							\
 		PV_TYPE##_GET_SYNCHRONOUS_PART_##ISET(aau_context);	\
 })
-#define	PREFIX_GET_AAU_CONTEXT_V2(PV_TYPE, pv_type, aau_context)	\
-		PREFIX_GET_AAU_CONTEXT(PV_TYPE, pv_type, V2, v2, aau_context)
-#define	PREFIX_GET_AAU_CONTEXT_V5(PV_TYPE, pv_type, aau_context)	\
-		PREFIX_GET_AAU_CONTEXT(PV_TYPE, pv_type, V5, v5, aau_context)
-#define	NATIVE_GET_AAU_CONTEXT_V2(aau_context)	\
-		PREFIX_GET_AAU_CONTEXT_V2(NATIVE, native, aau_context)
-#define	NATIVE_GET_AAU_CONTEXT_V5(aau_context)	\
-		PREFIX_GET_AAU_CONTEXT_V5(NATIVE, native, aau_context)
-#define NATIVE_GET_AAU_CONTEXT(aau_context)	\
-({ \
+#define	PREFIX_GET_AAU_CONTEXT_V2(PV_TYPE, pv_type, aau_context, aasr)	\
+		PREFIX_GET_AAU_CONTEXT(PV_TYPE, pv_type, V2, v2, aau_context, aasr)
+#define	PREFIX_GET_AAU_CONTEXT_V5(PV_TYPE, pv_type, aau_context, aasr)	\
+		PREFIX_GET_AAU_CONTEXT(PV_TYPE, pv_type, V5, v5, aau_context, aasr)
+#define	NATIVE_GET_AAU_CONTEXT_V2(aau_context, aasr)	\
+		PREFIX_GET_AAU_CONTEXT_V2(NATIVE, native, aau_context, aasr)
+#define	NATIVE_GET_AAU_CONTEXT_V5(aau_context, aasr)	\
+		PREFIX_GET_AAU_CONTEXT_V5(NATIVE, native, aau_context, aasr)
+#define NATIVE_GET_AAU_CONTEXT(aau_context, aasr)	\
+do { \
 	if (IS_AAU_ISET_V5()) { \
-		NATIVE_GET_AAU_CONTEXT_V5(aau_context); \
+		NATIVE_GET_AAU_CONTEXT_V5(aau_context, aasr); \
 	} else if (IS_AAU_ISET_V2()) { \
-		NATIVE_GET_AAU_CONTEXT_V2(aau_context); \
+		NATIVE_GET_AAU_CONTEXT_V2(aau_context, aasr); \
 	} else if (IS_AAU_ISET_GENERIC()) { \
-		machine.get_aau_context(aau_context); \
+		machine.get_aau_context(aau_context, aasr); \
 	} else { \
 		BUILD_BUG_ON(true); \
 	} \
-})
+} while (0)
 
-/*
- * It's taken that comparison with aasr.iab was taken and assr
- * will be set later.
- */
-#define	PREFIX_SET_AAU_CONTEXT(PV_TYPE, pv_type, aau_context) \
+#define	PREFIX_SET_AAU_CONTEXT(PV_TYPE, pv_type, aau_context, aalda, aasr) \
 do { \
 	const e2k_aau_t *const aau = (aau_context); \
-	/* retrieve common APB status register */\
-	e2k_aasr_t aasr = aau->aasr; \
  \
 	/* prefetch data to restore */ \
-	if (AS(aasr).stb) \
+	if (aasr.stb) \
 		prefetch_nospec_range(aau->aastis, sizeof(aau->aastis) + \
 					     sizeof(aau->aasti_tags)); \
-	if (AS(aasr).iab) \
+	if (aasr.iab) \
 		prefetch_nospec_range(aau->aainds, sizeof(aau->aainds) + \
 				sizeof(aau->aaind_tags) + sizeof(aau->aaincrs) + \
 				sizeof(aau->aaincr_tags) + sizeof(aau->aads)); \
-	if (AAU_STOPPED(aasr)) \
+	if (AAU_STOPPED(aasr)) { \
 		prefetch_nospec_range(aau->aaldi, sizeof(aau->aaldi)); \
+		if (!cpu_has(CPU_FEAT_ISET_V6)) \
+			prefetch_nospec_range(aalda, sizeof(e2k_aalda_t) * AALDAS_REGS_NUM); \
+	} \
  \
 	/* Make sure prefetches are issued */ \
 	barrier(); \
  \
 	/* set synchronous part of APB */ \
-	if (AS(aasr).stb) \
+	if (aasr.stb) \
 		pv_type##_set_synchronous_part(aau); \
  \
 	/* set descriptors & auxiliary registers */ \
-	if (AS(aasr).iab) \
+	if (aasr.iab) \
 		pv_type##_set_array_descriptors(aau); \
 } while (0)
-#define	NATIVE_SET_AAU_CONTEXT(aau_context)	\
-		PREFIX_SET_AAU_CONTEXT(NATIVE, native, aau_context)
+#define	NATIVE_SET_AAU_CONTEXT(aau_context, aalda, aasr) \
+	PREFIX_SET_AAU_CONTEXT(NATIVE, native, (aau_context), (aalda), (aasr))
 
 #define PREFIX_SAVE_AALDAS(PV_TYPE, pv_type, aaldas_p)			\
 ({									\
@@ -638,7 +639,7 @@ static inline void read_aaldm_reg(e2k_aaldm_t *aaldm)
 {
 	native_read_aaldm_reg(aaldm);
 }
-static inline void write_aaldm_reg(e2k_aaldm_t *aaldm)
+static inline void write_aaldm_reg(e2k_aaldm_t aaldm)
 {
 	native_write_aaldm_reg(aaldm);
 }
@@ -646,7 +647,7 @@ static inline void read_aaldv_reg(e2k_aaldv_t *aaldv)
 {
 	native_read_aaldv_reg(aaldv);
 }
-static inline void write_aaldv_reg(e2k_aaldv_t *aaldv)
+static inline void write_aaldv_reg(e2k_aaldv_t aaldv)
 {
 	native_write_aaldv_reg(aaldv);
 }
@@ -661,25 +662,5 @@ static inline void write_aaldv_reg(e2k_aaldv_t *aaldv)
 #endif
 
 #endif	/* CONFIG_KVM_GUEST_KERNEL */
-
-#define SWITCH_GUEST_AAU_AASR(aasr, aau_context, do_switch)	\
-({ \
-	if (do_switch) { \
-		e2k_aasr_t aasr_worst_case; \
-		AW(aasr_worst_case) = 0; \
-		AS(aasr_worst_case).stb = 1; \
-		AS(aasr_worst_case).iab = 1; \
-		AS(aasr_worst_case).lds = AASR_STOPPED; \
-		(aau_context)->guest_aasr = *(aasr); \
-		*(aasr) = aasr_worst_case; \
-	} \
-})
-
-#define RESTORE_GUEST_AAU_AASR(aau_context, do_restore)	\
-({ \
-	if (do_restore) { \
-		(aau_context)->aasr = (aau_context)->guest_aasr; \
-	} \
-})
 
 #endif /* _E2K_AAU_REGS_ACCESS_H_ */

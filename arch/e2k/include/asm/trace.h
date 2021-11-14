@@ -5,7 +5,6 @@
 #define _TRACE_E2K_H
 
 #include <linux/tracepoint.h>
-#include <linux/hugetlb.h>
 #include <asm/mmu_fault.h>
 #include <asm/mmu_types.h>
 #include <asm/page.h>

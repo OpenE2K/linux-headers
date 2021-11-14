@@ -172,7 +172,7 @@ typedef union {	/* Common array pointer */
 		long	lo;
 		long	hi;
 	} word;
-} e2k_ptr_t;
+} __aligned(16) e2k_ptr_t;
 
 #define	R_ENABLE	0x1
 #define	W_ENABLE	0x2
