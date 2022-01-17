@@ -125,6 +125,13 @@ do { \
 
 #endif /* DYNAMIC_DEBUG_SYSCALLP_ENABLED */
 
+/* If running in the orthodox protected mode, deliver exception to break execution: */
+#define PM_EXCEPTION_IF_ORTH_MODE(signo, code, errno) \
+do { \
+	if (!PM_SYSCALL_WARN_ONLY) \
+		pm_deliver_exception(signo, code, errno); \
+} while (0)
+
 /**************************** END of DEBUG DEFINES ***********************/
 
 
@@ -232,6 +239,9 @@ static inline char __user *e2k_ptr_str(long low, long hiw, u64 sbr_hi)
 
 	return NULL;
 }
+
+extern void pm_deliver_exception(int signo, int code, int errno);
+
 
 #else /* #ifndef CONFIG_PROTECTED_MODE */
 

@@ -127,6 +127,7 @@ extern enum exec_mmu_ret execute_mmu_operations(trap_cellar_t *tcellar,
 					struct pt_regs *regs),
 		enum exec_mmu_ret (*calculate_rf_frame)(struct pt_regs *regs,
 					tc_cond_t cond, u64 **radr,
-					bool *load_to_rf));
+					bool *load_to_rf),
+		bool priv_user);
 
 #endif /* _E2K_MMAN_H_ */

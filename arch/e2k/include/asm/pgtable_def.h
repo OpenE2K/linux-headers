@@ -19,7 +19,7 @@
 #include <asm/pgtable_types.h>
 #include <asm/machdep.h>
 #include <asm/page.h>
-#include <asm/pgtable-v2.h>
+#include <asm/pgtable-v3.h>
 #include <asm/pgtable-v6.h>
 #include <asm/p2v/boot_v2p.h>
 
@@ -40,7 +40,7 @@ do { \
 static inline int
 mmu_max_phys_addr_bits(bool mmu_pt_v6)
 {
-	return (mmu_pt_v6) ? E2K_MAX_PHYS_BITS_V6 : E2K_MAX_PHYS_BITS_V2;
+	return (mmu_pt_v6) ? E2K_MAX_PHYS_BITS_V6 : E2K_MAX_PHYS_BITS_V3;
 }
 static inline int
 e2k_max_phys_addr_bits(void)
@@ -135,27 +135,6 @@ get_pte_level_page_size(void)
 	return get_e2k_pt_level_page_size(E2K_PTE_LEVEL_NUM);
 }
 
-static inline int
-get_e2k_pt_level_huge_ptes_num(int level_id)
-{
-	return get_pt_struct_level_huge_ptes_num(&pgtable_struct, level_id);
-}
-static inline int
-get_pgd_level_huge_ptes_num(void)
-{
-	return get_e2k_pt_level_huge_ptes_num(E2K_PGD_LEVEL_NUM);
-}
-static inline int
-get_pud_level_huge_ptes_num(void)
-{
-	return get_e2k_pt_level_huge_ptes_num(E2K_PUD_LEVEL_NUM);
-}
-static inline int
-get_pmd_level_huge_ptes_num(void)
-{
-	return get_e2k_pt_level_huge_ptes_num(E2K_PMD_LEVEL_NUM);
-}
-
 /*
  * PTE format
  */
@@ -166,7 +145,7 @@ mmu_phys_addr_to_pte_pfn(e2k_addr_t phys_addr, bool mmu_pt_v6)
 	if (mmu_pt_v6)
 		return _PAGE_PADDR_TO_PFN_V6(phys_addr);
 	else
-		return _PAGE_PADDR_TO_PFN_V2(phys_addr);
+		return _PAGE_PADDR_TO_PFN_V3(phys_addr);
 }
 static inline e2k_addr_t
 mmu_pte_pfn_to_phys_addr(pteval_t pte_val, bool mmu_pt_v6)
@@ -174,7 +153,7 @@ mmu_pte_pfn_to_phys_addr(pteval_t pte_val, bool mmu_pt_v6)
 	if (mmu_pt_v6)
 		return _PAGE_PFN_TO_PADDR_V6(pte_val);
 	else
-		return _PAGE_PFN_TO_PADDR_V2(pte_val);
+		return _PAGE_PFN_TO_PADDR_V3(pte_val);
 }
 
 static inline pteval_t
@@ -198,7 +177,7 @@ mmu_kernel_protected_text_pte_val(pteval_t kernel_text_pte_val, e2k_addr_t cui,
 		return convert_kernel_text_pte_val_v6_to_protected(
 						kernel_text_pte_val);
 	else
-		return convert_kernel_text_pte_val_v2_to_protected(
+		return convert_kernel_text_pte_val_v3_to_protected(
 						kernel_text_pte_val, cui);
 }
 static inline pteval_t
@@ -216,7 +195,7 @@ static inline enum pte_mem_type get_pte_val_memory_type(pteval_t pte_val)
 	if (MMU_IS_PT_V6())
 		return get_pte_val_v6_memory_type(pte_val);
 	else
-		return get_pte_val_v2_memory_type(pte_val);
+		return get_pte_val_v3_memory_type(pte_val);
 }
 static inline pteval_t set_pte_val_memory_type(pteval_t pte_val,
 		pte_mem_type_t memory_type)
@@ -224,7 +203,7 @@ static inline pteval_t set_pte_val_memory_type(pteval_t pte_val,
 	if (MMU_IS_PT_V6())
 		return set_pte_val_v6_memory_type(pte_val, memory_type);
 	else
-		return set_pte_val_v2_memory_type(pte_val, memory_type);
+		return set_pte_val_v3_memory_type(pte_val, memory_type);
 }
 #define	_PAGE_GET_MEM_TYPE(pte_val)	\
 		get_pte_val_memory_type(pte_val)
@@ -237,7 +216,7 @@ mmu_fill_pte_val_flags(const uni_pteval_t uni_flags, bool mmu_pt_v6)
 	if (mmu_pt_v6)
 		return fill_pte_val_v6_flags(uni_flags);
 	else
-		return fill_pte_val_v2_flags(uni_flags);
+		return fill_pte_val_v3_flags(uni_flags);
 }
 static inline pteval_t
 mmu_get_pte_val_flags(pteval_t pte_val, const uni_pteval_t uni_flags,
@@ -246,7 +225,7 @@ mmu_get_pte_val_flags(pteval_t pte_val, const uni_pteval_t uni_flags,
 	if (mmu_pt_v6)
 		return get_pte_val_v6_flags(pte_val, uni_flags);
 	else
-		return get_pte_val_v2_flags(pte_val, uni_flags);
+		return get_pte_val_v3_flags(pte_val, uni_flags);
 }
 static inline bool
 mmu_test_pte_val_flags(pteval_t pte_val, const uni_pteval_t uni_flags,
@@ -261,7 +240,7 @@ mmu_set_pte_val_flags(pteval_t pte_val, const uni_pteval_t uni_flags,
 	if (mmu_pt_v6)
 		return set_pte_val_v6_flags(pte_val, uni_flags);
 	else
-		return set_pte_val_v2_flags(pte_val, uni_flags);
+		return set_pte_val_v3_flags(pte_val, uni_flags);
 }
 static inline pteval_t
 mmu_clear_pte_val_flags(pteval_t pte_val, const uni_pteval_t uni_flags,
@@ -270,7 +249,7 @@ mmu_clear_pte_val_flags(pteval_t pte_val, const uni_pteval_t uni_flags,
 	if (mmu_pt_v6)
 		return clear_pte_val_v6_flags(pte_val, uni_flags);
 	else
-		return clear_pte_val_v2_flags(pte_val, uni_flags);
+		return clear_pte_val_v3_flags(pte_val, uni_flags);
 }
 static __must_check inline pteval_t
 fill_pte_val_flags(const uni_pteval_t uni_flags)
@@ -309,7 +288,7 @@ mmu_get_pte_val_changeable_mask(bool mmu_pt_v6)
 	if (mmu_pt_v6)
 		return get_pte_val_v6_changeable_mask();
 	else
-		return get_pte_val_v2_changeable_mask();
+		return get_pte_val_v3_changeable_mask();
 }
 static inline pteval_t
 mmu_get_huge_pte_val_changeable_mask(bool mmu_pt_v6)
@@ -317,7 +296,7 @@ mmu_get_huge_pte_val_changeable_mask(bool mmu_pt_v6)
 	if (mmu_pt_v6)
 		return get_huge_pte_val_v6_changeable_mask();
 	else
-		return get_huge_pte_val_v2_changeable_mask();
+		return get_huge_pte_val_v3_changeable_mask();
 }
 static inline pteval_t
 mmu_get_pte_val_reduceable_mask(bool mmu_pt_v6)
@@ -325,7 +304,7 @@ mmu_get_pte_val_reduceable_mask(bool mmu_pt_v6)
 	if (mmu_pt_v6)
 		return get_pte_val_v6_reduceable_mask();
 	else
-		return get_pte_val_v2_reduceable_mask();
+		return get_pte_val_v3_reduceable_mask();
 }
 static inline pteval_t
 mmu_get_pte_val_restricted_mask(bool mmu_pt_v6)
@@ -333,7 +312,7 @@ mmu_get_pte_val_restricted_mask(bool mmu_pt_v6)
 	if (mmu_pt_v6)
 		return get_pte_val_v6_restricted_mask();
 	else
-		return get_pte_val_v2_restricted_mask();
+		return get_pte_val_v3_restricted_mask();
 }
 static inline pteval_t
 get_pte_val_changeable_mask(void)
@@ -431,10 +410,10 @@ get_pte_val_restricted_mask(void)
 
 #define _PAGE_KERNEL_RX_NOT_GLOB	\
 		_PAGE_INIT(UNI_PAGE_PRESENT | UNI_PAGE_VALID | \
-				 UNI_PAGE_PRIV | UNI_PAGE_HW_ACCESS)
+				 UNI_PAGE_PRIV | UNI_PAGE_ACCESSED)
 #define _PAGE_KERNEL_RO_NOT_GLOB	\
 		_PAGE_INIT(UNI_PAGE_PRESENT | UNI_PAGE_VALID | \
-				UNI_PAGE_PRIV | UNI_PAGE_HW_ACCESS | \
+				UNI_PAGE_PRIV | UNI_PAGE_ACCESSED | \
 				UNI_PAGE_NON_EX)
 #define _PAGE_KERNEL_RWX_NOT_GLOB	\
 		_PAGE_SET(_PAGE_KERNEL_RX_NOT_GLOB, \
@@ -492,7 +471,7 @@ get_pte_val_restricted_mask(void)
 			UNI_PAGE_WRITE | UNI_PAGE_DIRTY | UNI_PAGE_NON_EX)
 #define _PAGE_USER_RO_ACCESSED	\
 		_PAGE_INIT(UNI_PAGE_PRESENT | UNI_PAGE_VALID | \
-			UNI_PAGE_HW_ACCESS | UNI_PAGE_NON_EX)
+			UNI_PAGE_ACCESSED | UNI_PAGE_NON_EX)
 
 #define PAGE_KERNEL		__pgprot(_PAGE_KERNEL)
 #define PAGE_KERNEL_RO		__pgprot(_PAGE_KERNEL_RO)
@@ -558,29 +537,26 @@ get_pte_val_restricted_mask(void)
 
 #define PAGE_SHARED		\
 		__pgprot(_PAGE_INIT(UNI_PAGE_PRESENT | UNI_PAGE_VALID | \
-				UNI_PAGE_HW_ACCESS | UNI_PAGE_SW_ACCESS | \
-				UNI_PAGE_WRITE | UNI_PAGE_NON_EX))
+				UNI_PAGE_ACCESSED | UNI_PAGE_WRITE | \
+				UNI_PAGE_NON_EX))
 #define PAGE_SHARED_EX		\
 		__pgprot(_PAGE_INIT(UNI_PAGE_PRESENT | UNI_PAGE_VALID | \
-				UNI_PAGE_HW_ACCESS | UNI_PAGE_SW_ACCESS | \
-				UNI_PAGE_WRITE))
+				UNI_PAGE_ACCESSED | UNI_PAGE_WRITE))
 #define	PAGE_COPY_NEX		\
 		__pgprot(_PAGE_INIT(UNI_PAGE_PRESENT | UNI_PAGE_VALID | \
-				UNI_PAGE_HW_ACCESS | UNI_PAGE_SW_ACCESS | \
-				UNI_PAGE_NON_EX))
+				UNI_PAGE_ACCESSED | UNI_PAGE_NON_EX))
 #define	PAGE_COPY_EX		\
 		__pgprot(_PAGE_INIT(UNI_PAGE_PRESENT | UNI_PAGE_VALID | \
-				UNI_PAGE_HW_ACCESS | UNI_PAGE_SW_ACCESS))
+				UNI_PAGE_ACCESSED))
 
 #define	PAGE_COPY		PAGE_COPY_NEX
 
 #define PAGE_READONLY		\
 		__pgprot(_PAGE_INIT(UNI_PAGE_PRESENT | UNI_PAGE_VALID | \
-				UNI_PAGE_HW_ACCESS | UNI_PAGE_SW_ACCESS | \
-				UNI_PAGE_NON_EX))
+				UNI_PAGE_ACCESSED | UNI_PAGE_NON_EX))
 #define PAGE_EXECUTABLE		\
 		__pgprot(_PAGE_INIT(UNI_PAGE_PRESENT | UNI_PAGE_VALID | \
-				UNI_PAGE_HW_ACCESS | UNI_PAGE_SW_ACCESS))
+				UNI_PAGE_ACCESSED))
 
 /*
  * PAGE_NONE is used for NUMA hinting faults and should be valid.
@@ -588,10 +564,10 @@ get_pte_val_restricted_mask(void)
  */
 #define	PAGE_ENPTY		__pgprot(0ULL)
 #define PAGE_NONE		\
-		__pgprot(_PAGE_INIT(UNI_PAGE_PROTNONE | UNI_PAGE_HW_ACCESS | \
+		__pgprot(_PAGE_INIT(UNI_PAGE_PROTNONE | UNI_PAGE_ACCESSED | \
 					UNI_PAGE_VALID))
 #define PAGE_NONE_INVALID	\
-		__pgprot(_PAGE_INIT(UNI_PAGE_PROTNONE | UNI_PAGE_HW_ACCESS))
+		__pgprot(_PAGE_INIT(UNI_PAGE_PROTNONE | UNI_PAGE_ACCESSED))
 
 #define PAGE_INT_PR		\
 		__pgprot(_PAGE_INIT(UNI_PAGE_INT_PR))
@@ -1050,10 +1026,11 @@ static inline int pmd_bad(pmd_t pmd)
 
 #ifdef CONFIG_TRANSPARENT_HUGEPAGE
 #define	PMD_THP_INVALIDATE_FLAGS	(UNI_PAGE_PRESENT | UNI_PAGE_PROTNONE)
+
 #define has_transparent_hugepage has_transparent_hugepage
-static inline int has_transparent_hugepage(void)
-{
-	return cpu_has(CPU_FEAT_ISET_V3);
+static inline int has_transparent_hugepage(void)                                                               
+{                                                                                      
+	return true;
 }
 
 #define pmd_trans_huge(pmd)		user_pmd_huge(pmd)

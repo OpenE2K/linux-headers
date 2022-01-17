@@ -35,7 +35,7 @@ register unsigned long long __cpu_preempt_reg DO_ASM_GET_GREG_MEMONIC(SMP_CPU_ID
 #elif defined(E2K_P2V)
 
 # define NATIVE_HWBUG_AFTER_LD_ACQ_ADDRESS	\
-		(NATIVE_NV_READ_IP_REG_VALUE() & ~0x3fUL)
+		(NATIVE_READ_IP_REG_VALUE() & ~0x3fUL)
 # define NATIVE_HWBUG_AFTER_LD_ACQ_CPU 0
 # if !defined(CONFIG_E2K_MACHINE) || defined(CONFIG_E2K_E8C)
 #  define NATIVE_HAS_HWBUG_AFTER_LD_ACQ_ADDRESS 1
@@ -46,7 +46,7 @@ register unsigned long long __cpu_preempt_reg DO_ASM_GET_GREG_MEMONIC(SMP_CPU_ID
 #else /* CONFIG_BOOT_E2K */
 
 # define NATIVE_HWBUG_AFTER_LD_ACQ_ADDRESS	\
-		(NATIVE_NV_READ_IP_REG_VALUE() & ~0x3fUL)
+		(NATIVE_READ_IP_REG_VALUE() & ~0x3fUL)
 # define NATIVE_HAS_HWBUG_AFTER_LD_ACQ_ADDRESS 0
 # define NATIVE_HWBUG_AFTER_LD_ACQ_CPU 0
 

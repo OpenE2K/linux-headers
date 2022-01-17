@@ -128,9 +128,10 @@ do { \
 							PAGE_USER_PTE))
 #define pmd_clear(pmdp) \
 do { \
-	u64 __pmdval; \
-	__pmdval = _PAGE_INIT_VALID; \
-	native_set_pmd(pmdp, __pmd(__pmdval)); \
+	u64 __pmdval = _PAGE_INIT_VALID; \
+	trace_pt_update("pmd_clear: pmdp 0x%lx, value 0x%lx\n", \
+			(pmdp), _PAGE_INIT_VALID);		\
+	native_set_pmd(pmdp, __pmd(__pmdval));			\
 } while (0)
 
 static inline unsigned long pmd_page_vaddr(pmd_t pmd)
@@ -147,7 +148,6 @@ static inline unsigned long pgd_page_vaddr(pgd_t pgd)
 {
 	return (unsigned long)__va(_PAGE_PFN_TO_PADDR(pgd_val(pgd)));
 }
-
 
 #define boot_pmd_set_k(pmdp, ptep)	\
 		(*(pmdp) = mk_pmd_phys(boot_vpa_to_pa((e2k_addr_t)(ptep)), \
@@ -273,12 +273,11 @@ static __always_inline void native_set_pte(pte_t *ptep, pte_t pteval,
 	if (known_not_present) {
 		*ptep = pteval;
 	} else {
-		int have_flush_dc_ic = cpu_has(CPU_FEAT_FLUSH_DC_IC);
 		pte_t oldpte = *ptep;
 
 		*ptep = pteval;
 
-		if (have_flush_dc_ic && pte_present_and_exec(oldpte) &&
+		if (pte_present_and_exec(oldpte) &&
 				(!pte_present_and_exec(pteval) ||
 				 pte_pfn(oldpte) != pte_pfn(pteval)))
 			flush_pte_from_ic(oldpte);
@@ -287,12 +286,11 @@ static __always_inline void native_set_pte(pte_t *ptep, pte_t pteval,
 
 static inline void native_set_pmd(pmd_t *pmdp, pmd_t pmdval)
 {
-	int have_flush_dc_ic = cpu_has(CPU_FEAT_FLUSH_DC_IC);
 	pmd_t oldpmd = *pmdp;
 
 	*pmdp = pmdval;
 
-	if (have_flush_dc_ic && pmd_present_and_exec_and_huge(oldpmd) &&
+	if (pmd_present_and_exec_and_huge(oldpmd) &&
 			(!pmd_present_and_exec_and_huge(pmdval) ||
 			 pmd_pfn(oldpmd) != pmd_pfn(pmdval)))
 		flush_pmd_from_ic(oldpmd);
@@ -300,12 +298,11 @@ static inline void native_set_pmd(pmd_t *pmdp, pmd_t pmdval)
 
 static inline void native_set_pud(pud_t *pudp, pud_t pudval)
 {
-	int have_flush_dc_ic = cpu_has(CPU_FEAT_FLUSH_DC_IC);
 	pud_t oldpud = *pudp;
 
 	*pudp = pudval;
 
-	if (have_flush_dc_ic && pud_present_and_exec_and_huge(oldpud) &&
+	if (pud_present_and_exec_and_huge(oldpud) &&
 			(!pud_present_and_exec_and_huge(pudval) ||
 			 pud_pfn(oldpud) != pud_pfn(pudval)))
 		flush_pud_from_ic(oldpud);
@@ -432,7 +429,6 @@ do { \
 static inline pte_t ptep_get_and_clear(struct mm_struct *mm,
 		unsigned long addr, pte_t *ptep)
 {
-	int have_flush_dc_ic = cpu_has(CPU_FEAT_FLUSH_DC_IC);
 	int mm_users = atomic_read(&mm->mm_users);
 	pte_t oldpte;
 
@@ -449,7 +445,7 @@ static inline pte_t ptep_get_and_clear(struct mm_struct *mm,
 
 	/* mm_users check is for the fork() case: we do not
 	 * want to spend time flushing when we are exiting. */
-	if (have_flush_dc_ic && mm_users != 0 && pte_present_and_exec(oldpte))
+	if (mm_users != 0 && pte_present_and_exec(oldpte))
 		flush_pte_from_ic(oldpte);
 
 	return oldpte;
@@ -636,7 +632,7 @@ mmu_get_swap_offset(swp_entry_t swap_entry, bool mmu_pt_v6)
 	if (mmu_pt_v6)
 		return get_swap_offset_v6(swap_entry);
 	else
-		return get_swap_offset_v2(swap_entry);
+		return get_swap_offset_v3(swap_entry);
 }
 static inline swp_entry_t
 mmu_create_swap_entry(unsigned long type, unsigned long offset, bool mmu_pt_v6)
@@ -644,7 +640,7 @@ mmu_create_swap_entry(unsigned long type, unsigned long offset, bool mmu_pt_v6)
 	if (mmu_pt_v6)
 		return create_swap_entry_v6(type, offset);
 	else
-		return create_swap_entry_v2(type, offset);
+		return create_swap_entry_v3(type, offset);
 }
 static inline pte_t
 mmu_convert_swap_entry_to_pte(swp_entry_t swap_entry, bool mmu_pt_v6)
@@ -652,7 +648,7 @@ mmu_convert_swap_entry_to_pte(swp_entry_t swap_entry, bool mmu_pt_v6)
 	if (mmu_pt_v6)
 		return convert_swap_entry_to_pte_v6(swap_entry);
 	else
-		return convert_swap_entry_to_pte_v2(swap_entry);
+		return convert_swap_entry_to_pte_v3(swap_entry);
 }
 static inline unsigned long __swp_offset(swp_entry_t swap_entry)
 {
@@ -722,7 +718,6 @@ extern int ptep_set_access_flags(struct vm_area_struct *vma,
 static inline pmd_t pmdp_huge_get_and_clear(struct mm_struct *mm,
 		unsigned long addr, pmd_t *pmdp)
 {
-	int have_flush_dc_ic = cpu_has(CPU_FEAT_FLUSH_DC_IC);
 	int mm_users = atomic_read(&mm->mm_users);
 	pmd_t oldpmd;
 
@@ -735,8 +730,7 @@ static inline pmd_t pmdp_huge_get_and_clear(struct mm_struct *mm,
 
 	/* mm_users check is for the fork() case: we do not
 	 * want to spend time flushing when we are exiting. */
-	if (have_flush_dc_ic && mm_users != 0 &&
-			pmd_present_and_exec_and_huge(oldpmd))
+	if (mm_users != 0 && pmd_present_and_exec_and_huge(oldpmd))
 		flush_pmd_from_ic(oldpmd);
 
 	return oldpmd;
@@ -756,12 +750,9 @@ static inline pmd_t pmdp_huge_get_and_clear(struct mm_struct *mm,
 #endif
 
 /* interface functions to handle some things on the PT level */
-void split_simple_pmd_page(pgprot_t *ptp, pte_t *ptes[MAX_NUM_HUGE_PTES]);
-void split_multiple_pmd_page(pgprot_t *ptp, pte_t *ptes[MAX_NUM_HUGE_PTES]);
+void split_simple_pmd_page(pgprot_t *ptp, pte_t *ptes);
 void map_pud_huge_page_to_simple_pmds(pgprot_t *pmd_page, e2k_addr_t phys_page,
 					pgprot_t pgprot);
-void map_pud_huge_page_to_multiple_pmds(pgprot_t *pmd_page,
-			e2k_addr_t phys_page, pgprot_t pgprot);
 
 #endif	/* !(__ASSEMBLY__) */
 

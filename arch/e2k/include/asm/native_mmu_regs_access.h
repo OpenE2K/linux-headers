@@ -39,7 +39,7 @@
 #define	NATIVE_WRITE_MMU_CR(mmu_cr)					\
 		NATIVE_WRITE_MMU_REG(					\
 			_MMU_REG_NO_TO_MMU_ADDR_VAL(_MMU_CR_NO),	\
-			mmu_reg_val(mmu_cr))
+			AW(mmu_cr))
 #define	NATIVE_WRITE_MMU_TRAP_POINT(mmu_tc)				\
 		NATIVE_WRITE_MMU_REG(					\
 			_MMU_REG_NO_TO_MMU_ADDR_VAL(_MMU_TRAP_POINT_NO), \
@@ -142,28 +142,6 @@
 
 #define	NATIVE_FLUSH_CACHE_L12(flush_op)				\
 		NATIVE_WRITE_MAS_D((flush_op), (0), MAS_CACHE_FLUSH)
-
-static inline void
-native_invalidate_CACHE_L12(void)
-{
-	int invalidate_supported;
-	unsigned long flags;
-
-	DebugMR("Flush : Invalidate all CACHEs (op 0x%lx)\n",
-		flush_op_invalidate_cache_L12);
-
-	/* Invalidate operation was removed in E2S */
-	invalidate_supported = NATIVE_IS_MACHINE_ES2;
-
-	raw_all_irq_save(flags);
-	E2K_WAIT_MA;
-	if (invalidate_supported)
-		NATIVE_FLUSH_CACHE_L12(flush_op_invalidate_cache_L12);
-	else
-		NATIVE_FLUSH_CACHE_L12(flush_op_write_back_cache_L12);
-	E2K_WAIT_FLUSH;
-	raw_all_irq_restore(flags);
-}
 
 static inline void
 native_write_back_CACHE_L12(void)

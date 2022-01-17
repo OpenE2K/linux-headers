@@ -139,7 +139,7 @@ native_kernel_hw_stack_frames_copy(u64 *dst, const u64 *src, unsigned long size)
 	} else {
 #pragma loop count (5)
 		for (i = 0; i < size / 128; i++)
-			E2K_TAGGED_MEMMOVE_128_RF_V2(&dst[16 * i],
+			E2K_TAGGED_MEMMOVE_128_RF_V3(&dst[16 * i],
 					&src[16 * i]);
 
 		copied = round_down(size, 128);
@@ -619,7 +619,7 @@ static inline void collapse_kernel_hw_stacks(struct e2k_stacks *stacks)
 	 * we will have pcshtp = pcsp_hi.ind = 0. But situation
 	 * with pcsp_hi.ind != 0 and pcshtp = 0 is impossible. */
 	if (WARN_ON_ONCE(spilled_pc_size < SZ_OF_CR &&
-			 AS(stacks->pcsp_hi).ind != 0))
+			 AS(stacks->pcsp_hi).ind != 0 && !paravirt_enabled()))
 		do_exit(SIGKILL);
 
 	/* Keep the last user frame (see user_hw_stacks_copy_full()) */

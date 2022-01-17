@@ -105,26 +105,14 @@ copy_stack_page_from_kernel(void __user *dst, void *src, e2k_size_t to_copy,
 	return ret;
 }
 
-static __always_inline int
-copy_stack_page_to_user(void __user *dst, void *src, e2k_size_t to_copy,
-			bool is_chain)
+static inline struct page *get_user_addr_to_kernel_page(unsigned long addr)
 {
 	struct page *page = NULL;
-	unsigned long addr = (unsigned long)dst;
-	void *k_dst;
-	e2k_size_t offset;
 	mm_segment_t seg;
 	unsigned long ts_flag;
 	int npages;
 	int ret;
 
-	if (to_copy == 0)
-		return 0;
-
-	DebugUST("started to copy %s stack from kernel stack %px to user %px "
-		"size 0x%lx\n",
-		(is_chain) ? "chain" : "procedure",
-		src, dst, to_copy);
 	seg = get_fs();
 	set_fs(K_USER_DS);
 	ts_flag = set_ts_flag(TS_KERNEL_SYSCALL);
@@ -142,10 +130,43 @@ copy_stack_page_to_user(void __user *dst, void *src, e2k_size_t to_copy,
 		}
 		clear_ts_flag(ts_flag);
 		set_fs(seg);
-		goto failed;
+		return ERR_PTR(ret);
 	} while (npages != 1);
 	clear_ts_flag(ts_flag);
 	set_fs(seg);
+
+	return page;
+}
+
+static inline void put_user_addr_to_kernel_page(struct page *page)
+{
+	if (likely(!IS_ERR_OR_NULL(page)))
+		put_page(page);
+}
+
+static __always_inline int
+copy_stack_page_to_user(void __user *dst, void *src, e2k_size_t to_copy,
+			bool is_chain)
+{
+	struct page *page;
+	unsigned long addr = (unsigned long)dst;
+	void *k_dst;
+	e2k_size_t offset;
+	int ret;
+
+	if (to_copy == 0)
+		return 0;
+
+	DebugUST("started to copy %s stack from kernel stack %px to user %px "
+		"size 0x%lx\n",
+		(is_chain) ? "chain" : "procedure",
+		src, dst, to_copy);
+
+	page = get_user_addr_to_kernel_page(addr);
+	if (unlikely(IS_ERR_OR_NULL(page))) {
+		ret = (IS_ERR(page)) ? PTR_ERR(page) : -EINVAL;
+		goto failed;
+	}
 
 	offset = addr & ~PAGE_MASK;
 	k_dst = page_address(page) + offset;
@@ -161,7 +182,7 @@ copy_stack_page_to_user(void __user *dst, void *src, e2k_size_t to_copy,
 	}
 
 failed_copy:
-	put_page(page);
+	put_user_addr_to_kernel_page(page);
 failed:
 	return ret;
 }
@@ -200,23 +221,59 @@ kvm_copy_user_stack_from_kernel(void __user *dst, void *src,
 		if (trace_guest_va_tlb_state_enabled()) {
 			trace_guest_va_tlb_state((e2k_addr_t)dst);
 		}
-		trace_proc_stack_frames((kernel_mem_ps_t *)(src - copied),
-					(kernel_mem_ps_t *)(src - copied), copied,
+		src -= copied;
+		trace_proc_stack_frames((kernel_mem_ps_t *)(src),
+					(kernel_mem_ps_t *)(src), copied,
 					trace_guest_proc_stack_frame);
-		trace_proc_stack_frames((kernel_mem_ps_t *)(dst - copied),
-					(kernel_mem_ps_t *)(dst - copied), copied,
+		dst -= copied;
+		to_copy = copied;
+		do {
+			struct page *page;
+			void *k_dst;
+
+			offset = (unsigned long)dst & ~PAGE_MASK;
+			len = min(to_copy, PAGE_SIZE - offset);
+			page = get_user_addr_to_kernel_page((unsigned long)dst);
+			if (unlikely(IS_ERR_OR_NULL(page))) {
+				ret = (IS_ERR(page)) ? PTR_ERR(page) : -EINVAL;
+				goto failed;
+			}
+			k_dst = page_address(page) + offset;
+			trace_proc_stack_frames((kernel_mem_ps_t *)(k_dst),
+					(kernel_mem_ps_t *)(k_dst), len,
 					trace_guest_proc_stack_frame);
+			dst += len;
+			to_copy -= len;
+		} while (to_copy > 0);
 	}
 	if (is_chain && trace_guest_chain_stack_frame_enabled()) {
 		if (trace_guest_va_tlb_state_enabled()) {
 			trace_guest_va_tlb_state((e2k_addr_t)dst);
 		}
-		trace_chain_stack_frames((e2k_mem_crs_t *)(src - copied),
-					(e2k_mem_crs_t *)(src - copied), copied,
+		src -= copied;
+		trace_chain_stack_frames((e2k_mem_crs_t *)(src),
+					(e2k_mem_crs_t *)(src), copied,
 					trace_guest_chain_stack_frame);
-		trace_chain_stack_frames((e2k_mem_crs_t *)(dst - copied),
-					(e2k_mem_crs_t *)(dst - copied), copied,
+		dst -= copied;
+		to_copy = copied;
+		do {
+			struct page *page;
+			void *k_dst;
+
+			offset = (unsigned long)dst & ~PAGE_MASK;
+			len = min(to_copy, PAGE_SIZE - offset);
+			page = get_user_addr_to_kernel_page((unsigned long)dst);
+			if (unlikely(IS_ERR_OR_NULL(page))) {
+				ret = (IS_ERR(page)) ? PTR_ERR(page) : -EINVAL;
+				goto failed;
+			}
+			k_dst = page_address(page) + offset;
+			trace_chain_stack_frames((e2k_mem_crs_t *)(k_dst),
+					(e2k_mem_crs_t *)(k_dst), len,
 					trace_guest_chain_stack_frame);
+			dst += len;
+			to_copy -= len;
+		} while (to_copy > 0);
 	}
 
 	return 0;
@@ -259,14 +316,33 @@ kvm_user_hw_stacks_copy(pt_regs_t *regs)
 	stacks = &regs->stacks;
 	copyed_ps_size = regs->copyed.ps_size;
 	copyed_pcs_size = regs->copyed.pcs_size;
-	if (unlikely(copyed_ps_size || copyed_pcs_size)) {
+	if (unlikely(copyed_ps_size)) {
 		/* stacks have been already copyed */
-		BUG_ON(copyed_ps_size != GET_PSHTP_MEM_INDEX(stacks->pshtp) &&
-			GET_PSHTP_MEM_INDEX(stacks->pshtp) != 0);
-		BUG_ON(copyed_pcs_size != PCSHTP_SIGN_EXTEND(stacks->pcshtp) &&
-			PCSHTP_SIGN_EXTEND(stacks->pcshtp) != SZ_OF_CR);
-		return 0;
+		if (copyed_ps_size != GET_PSHTP_MEM_INDEX(stacks->pshtp) &&
+				GET_PSHTP_MEM_INDEX(stacks->pshtp) != 0) {
+			pr_err("%s(): copyed_ps_size 0x%lx != pshtp 0x%llx or "
+				"pshtp 0x%llx != 0\n",
+				__func__,
+				copyed_ps_size, GET_PSHTP_MEM_INDEX(stacks->pshtp),
+				GET_PSHTP_MEM_INDEX(stacks->pshtp));
+			WARN_ON(true);
+		}
 	}
+	if (unlikely(copyed_pcs_size)) {
+		/* stacks have been already copyed */
+		if (copyed_pcs_size != PCSHTP_SIGN_EXTEND(stacks->pcshtp) &&
+				PCSHTP_SIGN_EXTEND(stacks->pcshtp) != SZ_OF_CR) {
+			pr_err("%s(): copyed_pcs_size 0x%lx != pcshtp 0x%llx or "
+				"pcshtp 0x%llx != 0x%lx\n",
+				__func__,
+				copyed_pcs_size, PCSHTP_SIGN_EXTEND(stacks->pcshtp),
+				PCSHTP_SIGN_EXTEND(stacks->pcshtp), SZ_OF_CR);
+			WARN_ON(true);
+		}
+	}
+	if (unlikely(copyed_ps_size && copyed_pcs_size))
+		/* both stacks have been already copyed */
+		return 0;
 
 	ret = HYPERVISOR_copy_stacks_to_memory();
 	if (ret != 0) {
@@ -280,6 +356,10 @@ kvm_user_hw_stacks_copy(pt_regs_t *regs)
 				   pshtp.PSHTP_reg,
 				   pcsp_lo.PCSP_lo_half, pcsp_hi.PCSP_hi_half,
 				   pcshtp);
+
+	if (unlikely(copyed_ps_size))
+		goto copy_chain_stack;
+
 	src = (void *)psp_lo.PSP_lo_base;
 	DebugUST("procedure stack at kernel from %px, size 0x%x, ind 0x%x, "
 		"pshtp 0x%llx\n",
@@ -328,6 +408,11 @@ kvm_user_hw_stacks_copy(pt_regs_t *regs)
 		}
 		regs->copyed.ps_size = to_copy;
 	}
+
+copy_chain_stack:
+
+	if (unlikely(copyed_pcs_size))
+		goto complete_copy;
 
 	/* copy user part of chain stack from kernel back to user */
 	src = (void *)pcsp_lo.PCSP_lo_base;
@@ -379,6 +464,7 @@ kvm_user_hw_stacks_copy(pt_regs_t *regs)
 		regs->copyed.pcs_size = to_copy;
 	}
 
+complete_copy:
 failed:
 	if (DEBUG_USER_STACKS_MODE)
 		debug_ustacks = false;

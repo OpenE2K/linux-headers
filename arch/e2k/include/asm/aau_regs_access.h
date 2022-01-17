@@ -148,21 +148,21 @@ static inline e2k_aasr_t aasr_parse(e2k_aasr_t aasr)
 	PV_TYPE##_READ_AALDI_REG_VALUE_##ISET(30, regs[30], regs[62]); \
 	PV_TYPE##_READ_AALDI_REG_VALUE_##ISET(31, regs[31], regs[63]); \
 })
-#define PREFIX_SAVE_AALDIS_V2(PV_TYPE, pv_type, regs)	\
-		PREFIX_SAVE_AALDIS(PV_TYPE, pv_type, V2, v2, regs)
+#define PREFIX_SAVE_AALDIS_V3(PV_TYPE, pv_type, regs)	\
+		PREFIX_SAVE_AALDIS(PV_TYPE, pv_type, V3, v3, regs)
 #define PREFIX_SAVE_AALDIS_V5(PV_TYPE, pv_type, regs)	\
 		PREFIX_SAVE_AALDIS(PV_TYPE, pv_type, V5, v5, regs)
 
-#define NATIVE_SAVE_AALDIS_V2(regs)	\
-		PREFIX_SAVE_AALDIS_V2(NATIVE, native, regs)
+#define NATIVE_SAVE_AALDIS_V3(regs)	\
+		PREFIX_SAVE_AALDIS_V3(NATIVE, native, regs)
 #define NATIVE_SAVE_AALDIS_V5(regs)	\
 		PREFIX_SAVE_AALDIS_V5(NATIVE, native, regs)
 #define NATIVE_SAVE_AALDIS(regs)	\
 ({ \
 	if (IS_AAU_ISET_V5()) { \
 		NATIVE_SAVE_AALDIS_V5(regs); \
-	} else if (IS_AAU_ISET_V2()) { \
-		NATIVE_SAVE_AALDIS_V2(regs); \
+	} else if (IS_AAU_ISET_V3()) { \
+		NATIVE_SAVE_AALDIS_V3(regs); \
 	} else if (IS_AAU_ISET_GENERIC()) { \
 		machine.save_aaldi(regs); \
 	} else { \
@@ -170,7 +170,7 @@ static inline e2k_aasr_t aasr_parse(e2k_aasr_t aasr)
 	} \
 })
 
-#define	PREFIX_GET_ARRAY_DESCRIPTORS_V2(PV_TYPE, pv_type, aau_context)	\
+#define	PREFIX_GET_ARRAY_DESCRIPTORS_V3(PV_TYPE, pv_type, aau_context)	\
 ({									\
 	u64 *const aainds = (aau_context)->aainds;			\
 	u64 *const aaincrs = (aau_context)->aaincrs;			\
@@ -186,14 +186,14 @@ static inline e2k_aasr_t aasr_parse(e2k_aasr_t aasr)
 				ind13, ind14, ind15;			\
 		register u32	tags;					\
 									\
-		PV_TYPE##_READ_AAINDS_PAIR_VALUE_V2(1, ind1, ind2);	\
-		PV_TYPE##_READ_AAINDS_PAIR_VALUE_V2(3, ind3, ind4);	\
-		PV_TYPE##_READ_AAINDS_PAIR_VALUE_V2(5, ind5, ind6);	\
-		PV_TYPE##_READ_AAINDS_PAIR_VALUE_V2(7, ind7, ind8);	\
-		PV_TYPE##_READ_AAINDS_PAIR_VALUE_V2(9, ind9, ind10);	\
-		PV_TYPE##_READ_AAINDS_PAIR_VALUE_V2(11, ind11, ind12); \
-		PV_TYPE##_READ_AAINDS_PAIR_VALUE_V2(13, ind13, ind14); \
-		PV_TYPE##_READ_AAIND_REG15_AND_TAGS_VALUE_V2(ind15, tags); \
+		PV_TYPE##_READ_AAINDS_PAIR_VALUE_V3(1, ind1, ind2);	\
+		PV_TYPE##_READ_AAINDS_PAIR_VALUE_V3(3, ind3, ind4);	\
+		PV_TYPE##_READ_AAINDS_PAIR_VALUE_V3(5, ind5, ind6);	\
+		PV_TYPE##_READ_AAINDS_PAIR_VALUE_V3(7, ind7, ind8);	\
+		PV_TYPE##_READ_AAINDS_PAIR_VALUE_V3(9, ind9, ind10);	\
+		PV_TYPE##_READ_AAINDS_PAIR_VALUE_V3(11, ind11, ind12); \
+		PV_TYPE##_READ_AAINDS_PAIR_VALUE_V3(13, ind13, ind14); \
+		PV_TYPE##_READ_AAIND_REG15_AND_TAGS_VALUE_V3(ind15, tags); \
 		aainds[0] = 0;						\
 		aainds[1] = ind1;					\
 		aainds[2] = ind2;					\
@@ -222,10 +222,10 @@ static inline e2k_aasr_t aasr_parse(e2k_aasr_t aasr)
 				incr5, incr6, incr7;			\
 		register u32	tags;					\
 									\
-		PV_TYPE##_READ_AAINCRS_PAIR_VALUE_V2(1, incr1, incr2); \
-		PV_TYPE##_READ_AAINCRS_PAIR_VALUE_V2(3, incr3, incr4); \
-		PV_TYPE##_READ_AAINCRS_PAIR_VALUE_V2(5, incr5, incr6); \
-		PV_TYPE##_READ_AAINCR_REG7_AND_TAGS_VALUE_V2(incr7, tags); \
+		PV_TYPE##_READ_AAINCRS_PAIR_VALUE_V3(1, incr1, incr2);	\
+		PV_TYPE##_READ_AAINCRS_PAIR_VALUE_V3(3, incr3, incr4);	\
+		PV_TYPE##_READ_AAINCRS_PAIR_VALUE_V3(5, incr5, incr6);	\
+		PV_TYPE##_READ_AAINCR_REG7_AND_TAGS_VALUE_V3(incr7, tags); \
 		aaincrs[0] = 1;						\
 		aaincrs[1] = (s64) (s32) incr1;				\
 		aaincrs[2] = (s64) (s32) incr2;				\
@@ -237,8 +237,8 @@ static inline e2k_aasr_t aasr_parse(e2k_aasr_t aasr)
 		context->aaincr_tags = tags;				\
 	}								\
 })
-#define	NATIVE_GET_ARRAY_DESCRIPTORS_V2(aau_context)	\
-		PREFIX_GET_ARRAY_DESCRIPTORS_V2(NATIVE, native, aau_context)
+#define	NATIVE_GET_ARRAY_DESCRIPTORS_V3(aau_context)	\
+		PREFIX_GET_ARRAY_DESCRIPTORS_V3(NATIVE, native, aau_context)
 
 #define	PREFIX_GET_ARRAY_DESCRIPTORS_V5(PV_TYPE, pv_type, aau_context)	\
 ({									\
@@ -344,7 +344,7 @@ static inline e2k_aasr_t aasr_parse(e2k_aasr_t aasr)
 #define	NATIVE_SET_ARRAY_DESCRIPTORS(aau_context)	\
 		PREFIX_SET_ARRAY_DESCRIPTORS(NATIVE, native, aau_context)
 
-#define	PREFIX_GET_SYNCHRONOUS_PART_V2(PV_TYPE, pv_type, aau_context)	\
+#define	PREFIX_GET_SYNCHRONOUS_PART_V3(PV_TYPE, pv_type, aau_context)	\
 ({									\
 	u64	*const aastis = (aau_context)->aastis;			\
 	register u32	sti0, sti1, sti2, sti3,				\
@@ -353,14 +353,14 @@ static inline e2k_aasr_t aasr_parse(e2k_aasr_t aasr)
 			sti12, sti13, sti14, sti15;			\
 									\
 	/* get AASTIs */						\
-	PV_TYPE##_READ_AASTIS_PAIR_VALUE_V2(0, sti0, sti1);		\
-	PV_TYPE##_READ_AASTIS_PAIR_VALUE_V2(2, sti2, sti3);		\
-	PV_TYPE##_READ_AASTIS_PAIR_VALUE_V2(4, sti4, sti5);		\
-	PV_TYPE##_READ_AASTIS_PAIR_VALUE_V2(6, sti6, sti7);		\
-	PV_TYPE##_READ_AASTIS_PAIR_VALUE_V2(8, sti8, sti9);		\
-	PV_TYPE##_READ_AASTIS_PAIR_VALUE_V2(10, sti10, sti11);		\
-	PV_TYPE##_READ_AASTIS_PAIR_VALUE_V2(12, sti12, sti13);		\
-	PV_TYPE##_READ_AASTIS_PAIR_VALUE_V2(14, sti14, sti15);		\
+	PV_TYPE##_READ_AASTIS_PAIR_VALUE_V3(0, sti0, sti1);		\
+	PV_TYPE##_READ_AASTIS_PAIR_VALUE_V3(2, sti2, sti3);		\
+	PV_TYPE##_READ_AASTIS_PAIR_VALUE_V3(4, sti4, sti5);		\
+	PV_TYPE##_READ_AASTIS_PAIR_VALUE_V3(6, sti6, sti7);		\
+	PV_TYPE##_READ_AASTIS_PAIR_VALUE_V3(8, sti8, sti9);		\
+	PV_TYPE##_READ_AASTIS_PAIR_VALUE_V3(10, sti10, sti11);		\
+	PV_TYPE##_READ_AASTIS_PAIR_VALUE_V3(12, sti12, sti13);		\
+	PV_TYPE##_READ_AASTIS_PAIR_VALUE_V3(14, sti14, sti15);		\
 									\
 	aastis[0] = sti0;						\
 	aastis[1] = sti1;						\
@@ -419,8 +419,8 @@ static inline e2k_aasr_t aasr_parse(e2k_aasr_t aasr)
 	(aau_context)->aasti_tags =					\
 		pv_type##_read_aasti_tags_reg_value();		\
 })
-#define	NATIVE_GET_SYNCHRONOUS_PART_V2(aau_context)	\
-		PREFIX_GET_SYNCHRONOUS_PART_V2(NATIVE, native, aau_context)
+#define	NATIVE_GET_SYNCHRONOUS_PART_V3(aau_context)	\
+		PREFIX_GET_SYNCHRONOUS_PART_V3(NATIVE, native, aau_context)
 #define	NATIVE_GET_SYNCHRONOUS_PART_V5(aau_context)	\
 		PREFIX_GET_SYNCHRONOUS_PART_V5(NATIVE, native, aau_context)
 
@@ -508,20 +508,20 @@ static inline e2k_aasr_t aasr_parse(e2k_aasr_t aasr)
 	if (aasr.stb)							\
 		PV_TYPE##_GET_SYNCHRONOUS_PART_##ISET(aau_context);	\
 })
-#define	PREFIX_GET_AAU_CONTEXT_V2(PV_TYPE, pv_type, aau_context, aasr)	\
-		PREFIX_GET_AAU_CONTEXT(PV_TYPE, pv_type, V2, v2, aau_context, aasr)
+#define	PREFIX_GET_AAU_CONTEXT_V3(PV_TYPE, pv_type, aau_context, aasr)	\
+		PREFIX_GET_AAU_CONTEXT(PV_TYPE, pv_type, V3, v3, aau_context, aasr)
 #define	PREFIX_GET_AAU_CONTEXT_V5(PV_TYPE, pv_type, aau_context, aasr)	\
 		PREFIX_GET_AAU_CONTEXT(PV_TYPE, pv_type, V5, v5, aau_context, aasr)
-#define	NATIVE_GET_AAU_CONTEXT_V2(aau_context, aasr)	\
-		PREFIX_GET_AAU_CONTEXT_V2(NATIVE, native, aau_context, aasr)
+#define	NATIVE_GET_AAU_CONTEXT_V3(aau_context, aasr)	\
+		PREFIX_GET_AAU_CONTEXT_V3(NATIVE, native, aau_context, aasr)
 #define	NATIVE_GET_AAU_CONTEXT_V5(aau_context, aasr)	\
 		PREFIX_GET_AAU_CONTEXT_V5(NATIVE, native, aau_context, aasr)
 #define NATIVE_GET_AAU_CONTEXT(aau_context, aasr)	\
 do { \
 	if (IS_AAU_ISET_V5()) { \
 		NATIVE_GET_AAU_CONTEXT_V5(aau_context, aasr); \
-	} else if (IS_AAU_ISET_V2()) { \
-		NATIVE_GET_AAU_CONTEXT_V2(aau_context, aasr); \
+	} else if (IS_AAU_ISET_V3()) { \
+		NATIVE_GET_AAU_CONTEXT_V3(aau_context, aasr); \
 	} else if (IS_AAU_ISET_GENERIC()) { \
 		machine.get_aau_context(aau_context, aasr); \
 	} else { \

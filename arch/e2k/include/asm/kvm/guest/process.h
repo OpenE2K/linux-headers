@@ -90,6 +90,10 @@ static inline kvm_vcpu_state_t *kvm_get_vcpu_state(void)
 	return (kvm_vcpu_state_t *)(vcpu_base);
 }
 
+extern void kvm_clean_pc_stack_zero_frame(void *addr, bool user);
+extern e2k_cute_t *kvm_get_cut_entry_pointer(int cui, struct page **page);
+extern void kvm_put_cut_entry_pointer(struct page *page);
+
 /*
  * Restore proper psize field of WD register
  */
@@ -323,6 +327,22 @@ static inline void COPY_STACKS_TO_MEMORY(void)
 }
 
 static inline void
+clean_pc_stack_zero_frame(void *addr, bool user)
+{
+	kvm_clean_pc_stack_zero_frame(addr, user);
+}
+
+static inline e2k_cute_t *get_cut_entry_pointer(int cui, struct page **page)
+{
+	return kvm_get_cut_entry_pointer(cui, page);
+}
+
+static inline void put_cut_entry_pointer(struct page *page)
+{
+	kvm_put_cut_entry_pointer(page);
+}
+
+static inline void
 restore_wd_register_psize(e2k_wd_t wd_from)
 {
 	kvm_restore_wd_register_psize(wd_from);
@@ -428,7 +448,10 @@ release_kernel_stacks(thread_info_t *dead_ti)
 }
 #endif	/* COMMON_KERNEL_USER_HW_STACKS */
 
-#define	GET_PARAVIRT_GUEST_MODE(pv_guest, regs)	/* nothing to do */
+#define	GET_PARAVIRT_GUEST_MODE(pv_guest, regs)				\
+({									\
+	(pv_guest) = false;						\
+})
 
 static inline int
 switch_to_new_user(e2k_stacks_t *stacks, hw_stack_t *hw_stacks,

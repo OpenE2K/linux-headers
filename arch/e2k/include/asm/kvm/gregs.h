@@ -6,6 +6,7 @@
 #include <asm/machdep.h>
 #include <asm/glob_regs.h>
 #include <asm/ptrace.h>
+#include <asm/e2k_debug.h>
 
 #ifdef	CONFIG_VIRTUALIZATION
 /* It is native host guest kernel with virtualization support */
@@ -113,20 +114,26 @@
 	machine.save_kernel_gregs(&vcpu->arch.host_ctxt.k_gregs);	\
 									\
 	u64 guest_vs = GET_GUEST_VCPU_STATE_POINTER(vcpu);		\
-	E2K_SET_DGREG(GUEST_VCPU_STATE_GREG, guest_vs);			\
+	HOST_ONLY_RESTORE_VCPU_STATE_GREG(guest_vs);			\
 })
 
 #define HOST_VCPU_STATE_REG_RESTORE(host_ti)				\
 ({									\
 	struct kvm_vcpu *vcpu = host_ti->vcpu;				\
 									\
-	struct kernel_gregs h_gregs;					\
-	machine.save_kernel_gregs(&h_gregs);				\
+	copy_k_gregs_to_k_gregs(&host_ti->k_gregs_light,		\
+				&vcpu->arch.host_ctxt.k_gregs);		\
+})
+
+#define HOST_VCPU_STATE_COPY_SWITCH_TO_GUEST(vcpu, __ti)		\
+({									\
+	gthread_info_t *_gti = pv_vcpu_get_gti(vcpu);			\
+	kernel_gregs_t *k_gregs = &(__ti)->k_gregs;			\
+	kernel_gregs_t *gk_gregs = &(_gti)->gk_gregs;			\
+	u64 guest_vs;							\
 									\
-	NATIVE_RESTORE_KERNEL_GREGS(&vcpu->arch.host_ctxt.k_gregs);	\
-	machine.save_kernel_gregs(&host_ti->k_gregs_light);		\
-									\
-	NATIVE_RESTORE_KERNEL_GREGS(&h_gregs);				\
+	HOST_ONLY_COPY_FROM_VCPU_STATE_GREG(gk_gregs, guest_vs);	\
+	HOST_ONLY_COPY_TO_VCPU_STATE_GREG(k_gregs, guest_vs);		\
 })
 
 #define	HOST_RESTORE_KERNEL_GREGS_AS_LIGHT(_ti) \

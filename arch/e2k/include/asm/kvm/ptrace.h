@@ -217,6 +217,8 @@ static inline void atomic_load_osgd_to_gd(void)
 #define	is_call_from_guest_kernel_IP(cr0_hi, cr1_lo, ignore_IP)		\
 		((!(ignore_IP)) ? is_call_from_guest_kernel(cr0_hi, cr1_lo) : \
 			from_guest_kernel_mode(cr1_lo))
+#define	call_from_guest_kernel(regs)					\
+		is_call_from_guest_kernel((regs)->crs.cr0_hi, (regs)->crs.cr1_lo)
 
 #define	is_trap_on_user(regs, __HOST__)					\
 		((__HOST__) ?						\
@@ -458,6 +460,7 @@ check_is_user_address(struct task_struct *task, e2k_addr_t address)
 			from_kernel_mode(cr1_lo))
 #define	is_call_from_guest_kernel(cr0_hi, cr1_lo)		false
 #define	is_call_from_guest_kernel_IP(cr0_hi, cr1_lo, ignore_IP)	false
+#define	call_from_guest_kernel(regs)				false
 
 #define	is_call_from_user(cr0_hi, cr1_lo, __HOST__)			\
 		is_call_from_host_user(cr0_hi, cr1_lo)

@@ -24,7 +24,9 @@
 })
 
 #define GUEST_USER_PTRS_PER_PGD		(GUEST_PAGE_OFFSET / PGDIR_SIZE)
-#define	GUEST_KERNEL_PGD_PTRS_START	GUEST_USER_PTRS_PER_PGD
+#define	GUEST_USER_PGD_PTRS_START	0
+#define	GUEST_USER_PGD_PTRS_END		GUEST_USER_PTRS_PER_PGD
+#define	GUEST_KERNEL_PGD_PTRS_START	GUEST_USER_PGD_PTRS_END
 #define	GUEST_KERNEL_PGD_PTRS_END	(GUEST_KERNEL_MEM_END / PGDIR_SIZE)
 #define	GUEST_KERNEL_PTRS_PER_PGD	(GUEST_KERNEL_PGD_PTRS_END -	\
 						GUEST_KERNEL_PGD_PTRS_START)
@@ -59,14 +61,17 @@ kvm_init_new_context(struct kvm *kvm, gmm_struct_t *gmm)
 }
 
 #ifdef	CONFIG_KVM_HV_MMU
+
 static inline pgd_t *
 kvm_mmu_get_init_gmm_root(struct kvm *kvm)
 {
-	GTI_BUG_ON(pv_mmu_get_init_gmm(kvm) == NULL);
-	if (!VALID_PAGE(pv_mmu_get_init_gmm(kvm)->root_hpa))
+	hpa_t root_hpa = kvm_mmu_get_init_gmm_root_hpa(kvm);
+
+	if (!VALID_PAGE(root_hpa))
 		return NULL;
-	return (pgd_t *)__va(pv_mmu_get_init_gmm(kvm)->root_hpa);
+	return (pgd_t *)__va(root_hpa);
 }
+
 static inline void
 kvm_mmu_set_init_gmm_root(struct kvm_vcpu *vcpu, hpa_t root)
 {
@@ -85,6 +90,7 @@ kvm_mmu_set_init_gmm_root(struct kvm_vcpu *vcpu, hpa_t root)
 	}
 	if (VALID_PAGE(root)) {
 		gmm->root_hpa = root;
+		gmm->gk_root_hpa = root;
 	}
 	if (is_sep_virt_spaces(vcpu)) {
 		root_gpa = kvm_get_space_type_guest_os_root(vcpu);
@@ -108,9 +114,17 @@ kvm_mmu_get_gmm_root(struct gmm_struct *gmm)
 	return (pgd_t *)__va(gmm->root_hpa);
 }
 static inline pgd_t *
+kvm_mmu_get_gmm_gk_root(struct gmm_struct *gmm)
+{
+	GTI_BUG_ON(gmm == NULL);
+	if (!VALID_PAGE(gmm->gk_root_hpa))
+		return NULL;
+	return (pgd_t *)__va(gmm->gk_root_hpa);
+}
+static inline pgd_t *
 kvm_mmu_load_the_gmm_root(struct kvm_vcpu *vcpu, gmm_struct_t *gmm)
 {
-	pgd_t *root;
+	pgd_t *root, *gk_root;
 	bool u_space = gmm != pv_vcpu_get_init_gmm(vcpu);
 
 	GTI_BUG_ON(vcpu == NULL);
@@ -127,16 +141,20 @@ kvm_mmu_load_the_gmm_root(struct kvm_vcpu *vcpu, gmm_struct_t *gmm)
 			vcpu->arch.mmu.set_vcpu_os_pptb(vcpu, gmm->u_vptb);
 			kvm_set_space_type_spt_os_root(vcpu, (hpa_t)__pa(root));
 			kvm_set_space_type_spt_u_root(vcpu, (hpa_t)__pa(root));
+			kvm_set_space_type_spt_gk_root(vcpu, (hpa_t)__pa(root));
 		}
+		return root;
 	} else {
 		vcpu->arch.mmu.set_vcpu_u_pptb(vcpu, gmm->u_pptb);
 		kvm_set_space_type_spt_u_root(vcpu, (hpa_t)__pa(root));
+		gk_root = kvm_mmu_get_gmm_gk_root(gmm);
+		kvm_set_space_type_spt_gk_root(vcpu, (hpa_t)__pa(gk_root));
 		if (likely(!is_sep_virt_spaces(vcpu))) {
 			vcpu->arch.mmu.set_vcpu_os_pptb(vcpu, gmm->u_pptb);
 			kvm_set_space_type_spt_os_root(vcpu, (hpa_t)__pa(root));
 		}
+		return gk_root;
 	}
-	return root;
 }
 
 static inline pgd_t *

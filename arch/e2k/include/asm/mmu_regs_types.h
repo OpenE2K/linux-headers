@@ -114,7 +114,6 @@ typedef	e2k_addr_t			mmu_addr_t;
 typedef	unsigned long long		mmu_reg_t;
 #define	mmu_reg_val(mmu_reg)		(mmu_reg)
 #define	__mmu_reg(mmu_reg_val)		(mmu_reg_val)
-#endif /* __ASSEMBLY__ */
 
 /* Size of trap_cellar */
 
@@ -125,90 +124,48 @@ typedef	unsigned long long		mmu_reg_t;
  * MMU Control Register MMU_CR
  */
 
-#define	_MMU_CR_CD_SHIFT	1
-#define	_MMU_CR_IPD_SHIFT	11
+typedef union {
+	struct {
+		u64 tlb_en  : 1;
+		u64 cd      : 2;
+		u64 set1    : 1;
+		u64 set2    : 1;
+		u64 set3    : 1;
+		u64 cr0_pg  : 1;
+		u64 cr4_pse : 1;
+		u64 cr0_cd  : 1;
+		u64 tlu2_en : 1;
+		u64 spae    : 1;
+		u64 ipd     : 1;
+		u64 upt     : 1;
+		u64 slma    : 1;
+		u64 spcd    : 1;
+		u64 snxe    : 1;
+		u64         : 48;
+	};
+	u64 word;
+} e2k_mmu_cr_t;
 
-#define _MMU_CR_TLB_EN		0x0000000000000001	/* translation enable */
-#define _MMU_CR_CD_MASK		0x0000000000000006	/* cache disable bits */
-#define _MMU_CR_SET1		0x0000000000000008	/* set #1 enable for */
-							/* 4 MB pages */
-#define _MMU_CR_SET2		0x0000000000000010	/* set #2 enable for */
-							/* 4 MB pages */
-#define _MMU_CR_SET3		0x0000000000000020	/* set #3 enable for */
-							/* 4 MB pages */
-#define _MMU_CR_CR0_PG		0x0000000000000040	/* paging enable for */
-							/* second space INTEL */
-#define _MMU_CR_CR4_PSE		0x0000000000000080	/* page size 4Mb */
-							/* enable for second */
-							/* space INTEL */
-#define _MMU_CR_CR0_CD		0x0000000000000100	/* cache disable for */
-							/* secondary space */
-							/* INTEL */
-#define _MMU_CR_TLU2_EN		0x0000000000000200	/* TLU enable for */
-							/* secondary space */
-							/* INTEL */
-#define _MMU_CR_LD_MPT		0x0000000000000400	/* memory protection */
-							/* table enable for */
-							/* LD from secondary */
-							/* space INTEL */
-#define _MMU_CR_IPD_MASK	0x0000000000000800	/* Instruction */
-							/* Prefetch Depth */
-#define _MMU_CR_UPT_EN		0x0000000000001000	/* enable UPT */
-#define _MMU_CR_SNXE		0x0000000000008000	/* enable SNXE */
+#define MMU_CR_CD_EN		0UL	/* all caches enabled */
+#define MMU_CR_CD_D1_DIS	1UL	/* L1D disabled */
+#define MMU_CR_CD_D_DIS		2UL	/* L1D and L2 disabled */
+#define MMU_CR_CD_DIS		3UL	/* all caches disabled */
+#define MMU_CR_IPD_DIS		0UL	/* Disable icache prefetch */
+#define MMU_CR_IPD_2_LINES	1UL	/* 2 icache lines for prefetch */
 
-#define	_MMU_CR_CD_VAL(x)	(((x) << _MMU_CR_CD_SHIFT) & _MMU_CR_CD_MASK)
-#define _MMU_CD_EN	_MMU_CR_CD_VAL(0UL)	/* all caches enabled */
-#define _MMU_CD_D1_DIS	_MMU_CR_CD_VAL(1UL)	/* DCACHE1 disabled */
-#define _MMU_CD_D_DIS	_MMU_CR_CD_VAL(2UL)	/* DCACHE1, DCACHE2 disabled */
-#define _MMU_CD_DIS	_MMU_CR_CD_VAL(3UL)	/* DCACHE1, DCACHE2, ECACHE */
-						/* disabled */
-#define	_MMU_CR_IPD_VAL(x)	(((x) << _MMU_CR_IPD_SHIFT) & _MMU_CR_IPD_MASK)
-#define _MMU_IPD_DIS	_MMU_CR_IPD_VAL(0UL)	/* none prefetch */
-#define _MMU_IPD_2_LINE	_MMU_CR_IPD_VAL(1UL)	/* 2 line of ICACHE prefetch */
-
-#ifdef	CONFIG_IPD_DISABLE
-#define	KERNEL_MMU_IPD	_MMU_IPD_DIS		/* none prefetch */
-#else
-#define	KERNEL_MMU_IPD	_MMU_IPD_2_LINE		/* 2 line of ICACHE prefetch */
-#endif	/* CONFIG_IPD_DISABLE */
-
-#ifndef	CONFIG_SECONDARY_SPACE_SUPPORT
-#define	_MMU_CR_SEC_SPACE_EN
-#define	_MMU_CR_SEC_SPACE_DIS
-#else	/*  CONFIG_SECONDARY_SPACE_SUPPORT */
-#define _MMU_CR_SEC_SPACE_EN	(_MMU_CR_CR0_PG | _MMU_CR_TLU2_EN)
-#define _MMU_CR_SEC_SPACE_DIS	(_MMU_CR_CR0_CD)
-#endif	/* ! CONFIG_SECONDARY_SPACE_SUPPORT */
-
-#define __MMU_CR_KERNEL		(_MMU_CR_TLB_EN | _MMU_CD_EN | KERNEL_MMU_IPD)
-#define __MMU_CR_KERNEL_OFF	(_MMU_CD_DIS | _MMU_IPD_DIS)
-
-#ifdef CONFIG_HUGETLB_PAGE
-# define _MMU_CR_KERNEL         (__MMU_CR_KERNEL | _MMU_CR_SET3)
-#else
-# define _MMU_CR_KERNEL (boot_cpu_has(CPU_HWBUG_LARGE_PAGES) ? \
-			(__MMU_CR_KERNEL) : (__MMU_CR_KERNEL | _MMU_CR_SET3))
-#endif	/* CONFIG_HUGETLB_PAGE */
-
-#define	MMU_CR_KERNEL		__mmu_reg(_MMU_CR_KERNEL)
-#define	MMU_CR_KERNEL_OFF	__mmu_reg(__MMU_CR_KERNEL_OFF)
-
-#define	mmu_cr_set_tlb_enable(mmu_reg)	\
-		(mmu_reg_val(mmu_reg) | _MMU_CR_TLB_EN)
-
-#define mmu_cr_set_vaddr_enable(mmu_reg)	\
-		(mmu_reg_val(mmu_reg) | _MMU_CR_TLB_EN)
-
-#define	mmu_cr_reset_tlb_enable(mmu_reg)	\
-		(mmu_reg_val(mmu_reg) & ~(_MMU_CR_TLB_EN))
-
-#define mmu_cr_reset_vaddr_enable(mmu_reg)	\
-		(mmu_reg_val(mmu_reg) & ~(_MMU_CR_TLB_EN))
-
-# define mmu_cr_set_large_pages(mmu_reg)	\
-		(mmu_reg_val(mmu_reg) | _MMU_CR_SET3)
-# define mmu_cr_reset_large_pages(mmu_reg)	\
-		(mmu_reg_val(mmu_reg) & ~_MMU_CR_SET3)
+#define	MMU_CR_KERNEL ((e2k_mmu_cr_t) { \
+	/* Important: C dictates that exactly 1 union member is initialized, \
+	 * otherwise the later initialization will have priority. */ \
+	tlb_en : 1, \
+	cd     : MMU_CR_CD_EN, \
+	ipd    : MMU_CR_IPD_2_LINES, \
+	set3   : 1, \
+})
+#define	MMU_CR_KERNEL_OFF ((e2k_mmu_cr_t) { \
+	cd     : MMU_CR_CD_DIS, \
+	ipd    : MMU_CR_IPD_DIS, \
+})
+#endif /* __ASSEMBLY__ */
 
 /*
  * MMU Process ID Register MMU_PID (renamed name from MMU_CONT)
@@ -292,11 +249,11 @@ typedef	unsigned long long		mmu_reg_t;
  * arising on it ("cellar")
  */
 
-#define	MMU_ALIGN_TRAP_POINT_BASE_V2	9
-#define	MMU_ALIGN_TRAP_POINT_BASE_MASK_V2	\
-		((1UL << MMU_ALIGN_TRAP_POINT_BASE_V2) - 1)
-#define	MMU_TRAP_POINT_MASK_V2	~MMU_ALIGN_TRAP_POINT_BASE_MASK_V2
-#define	MMU_TRAP_CELLAR_MAX_SIZE_V2		64	/* double-words */
+#define	MMU_ALIGN_TRAP_POINT_BASE_V3	9
+#define	MMU_ALIGN_TRAP_POINT_BASE_MASK_V3	\
+		((1UL << MMU_ALIGN_TRAP_POINT_BASE_V3) - 1)
+#define	MMU_TRAP_POINT_MASK_V3	~MMU_ALIGN_TRAP_POINT_BASE_MASK_V3
+#define	MMU_TRAP_CELLAR_MAX_SIZE_V3		64	/* double-words */
 
 #define	MMU_ALIGN_TRAP_POINT_BASE	10
 #define	MMU_ALIGN_TRAP_POINT_BASE_MASK	((1UL << MMU_ALIGN_TRAP_POINT_BASE) - 1)
@@ -379,11 +336,13 @@ typedef dcache_addr_t	dcache_l2_addr_t;
 
 #define _E2K_DCACHE_L1_SET		0x00000000C0000000
 #define _E2K_DCACHE_L1_TYPE		0x0000000020000000
+#define _E2K_DCACHE_L1_TYPE_H		0x0000000008000000
 #define _E2K_DCACHE_L1_LINE		0x0000000000003FE0
 #define _E2K_DCACHE_L1_WORD		0x0000000000000018
 
 #define _E2K_DCACHE_L1_SET_SHIFT	30
 #define _E2K_DCACHE_L1_TYPE_SHIFT	29
+#define _E2K_DCACHE_L1_TYPE_H_SHIFT	27
 #define _E2K_DCACHE_L1_LINE_SHIFT	5
 #define _E2K_DCACHE_L1_WORD_SHIFT	3
 
@@ -397,6 +356,14 @@ typedef dcache_addr_t	dcache_l2_addr_t;
 			_E2K_DCACHE_L1_SET))
 #define	dcache_l1_get_set(addr)						     \
 		(dcache_l1_addr_val(addr) & _E2K_DCACHE_L1_SET)
+
+#define	dcache_l1_set_type_h(addr, type_h)				      \
+		(__dcache_l1_addr(					      \
+			(dcache_l1_addr_val(addr) & ~_E2K_DCACHE_L1_TYPE_H) | \
+			((type_h) << _E2K_DCACHE_L1_TYPE_H_SHIFT) &	      \
+			_E2K_DCACHE_L1_TYPE_H))
+#define	dcache_l1_get_type_h(addr)					     \
+		(dcache_l1_addr_val(addr) & _E2K_DCACHE_L1_TYPE_H)
 
 #define	dcache_l1_set_type(addr, type)					     \
 		(__dcache_l1_addr(					     \
@@ -422,12 +389,13 @@ typedef dcache_addr_t	dcache_l2_addr_t;
 #define	dcache_l1_get_word(addr)					     \
 		(dcache_l1_addr_val(addr) & _E2K_DCACHE_L1_WORD)
 
-#define mk_dcache_l1_addr(virt_addr, set, type, word)			     \
+#define mk_dcache_l1_addr(virt_addr, set, type, type_h, word)		     \
 ({									     \
 	dcache_l1_addr_t addr;						     \
 	addr = __dcache_l1_addr(DCACHE_L1_VADDR_TO_ADDR(virt_addr));	     \
 	addr = dcache_l1_set_set(addr, set);				     \
 	addr = dcache_l1_set_type(addr, type);				     \
+	addr = dcache_l1_set_type_h(addr, type_h);			     \
 	addr = dcache_l1_set_word(addr, word);				     \
 	addr;								     \
 })
@@ -583,20 +551,16 @@ typedef	e2k_addr_t			flush_addr_t;
 
 /* CACHE(s) flush operations address */
 
-#define	_FLUSH_INVALIDATE_CACHE_L12_OP	0x0000000000000000
 #define	_FLUSH_WRITE_BACK_CACHE_L12_OP	0x0000000000000001
 
 /* instruction set begining V3 has not invalidate operation */
 /* only flush all caches (same as write back) */
 #define	_FLUSH_CACHE_L12_OP		_FLUSH_WRITE_BACK_CACHE_L12_OP
 
-#define	flush_op_set_invalidate_cache_L12(flush_op)	\
-		flush_op_set_type(flush_op, _FLUSH_INVALIDATE_CACHE_L12_OP)
 #define	flush_op_set_write_back_cache_L12(flush_op)	\
 		flush_op_set_type(flush_op, _FLUSH_WRITE_BACK_CACHE_L12_OP)
 #define	flush_op_set_cache_all(flush_op)		\
 		flush_op_set_write_back_cache_L12(flush_op)
-#define	flush_op_invalidate_cache_L12	((long)_FLUSH_INVALIDATE_CACHE_L12_OP)
 #define	flush_op_write_back_cache_L12	((long)_FLUSH_WRITE_BACK_CACHE_L12_OP)
 
 /*

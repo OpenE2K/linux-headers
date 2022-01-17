@@ -19,12 +19,7 @@ extern int __memcmp(const void *cs, const void *ct, size_t count) __pure;
 #define memcmp(dst, src, n) _memcmp((dst), (src), (n))
 static inline int _memcmp(const void *s1, const void *s2, size_t n)
 {
-#ifdef E2K_P2V
-	bool manual_inline = !IS_ENABLED(CONFIG_CPU_ES2);
-#else
-	bool manual_inline = !cpu_has(CPU_HWBUG_UNALIGNED_LOADS);
-#endif
-	if (__builtin_constant_p(n) && n < 0x20 && manual_inline) {
+	if (__builtin_constant_p(n) && n < 0x20) {
 		/* Inline small memcmp's */
 		if (n & 0x10) {
 			u64 v1 = *(u64 *) s1;
@@ -176,10 +171,9 @@ static inline void *_memcpy(void *__restrict dst,
 		size_t n, const unsigned long dst_align)
 {
 #if defined E2K_P2V || defined CONFIG_BOOT_E2K
-	bool manual_inline = !IS_ENABLED(CONFIG_CPU_ES2);
+	bool manual_inline = true;
 #else
-	bool manual_inline = !cpu_has(CPU_HWBUG_UNALIGNED_LOADS) &&
-			(dst_align >= 8 || cpu_has(CPU_FEAT_ISET_V6));
+	bool manual_inline = (dst_align >= 8 || cpu_has(CPU_FEAT_ISET_V6));
 #endif
 
 	/*

@@ -69,9 +69,9 @@ typedef union e2k_fapb_aps {
 #define get_vlc(reg)	((reg >> LSR_VLC_SHIFT) & LSR_VLC_MASK)
 
 static inline void
-native_get_array_descriptors_v2(e2k_aau_t *context)
+native_get_array_descriptors_v3(e2k_aau_t *context)
 {
-	NATIVE_GET_ARRAY_DESCRIPTORS_V2(context);
+	NATIVE_GET_ARRAY_DESCRIPTORS_V3(context);
 }
 static inline void
 native_get_array_descriptors_v5(e2k_aau_t *context)
@@ -86,9 +86,9 @@ native_set_array_descriptors(const e2k_aau_t *context)
 }
 
 static inline void
-native_get_synchronous_part_v2(e2k_aau_t *context)
+native_get_synchronous_part_v3(e2k_aau_t *context)
 {
-	NATIVE_GET_SYNCHRONOUS_PART_V2(context);
+	NATIVE_GET_SYNCHRONOUS_PART_V3(context);
 }
 static inline void
 native_get_synchronous_part_v5(e2k_aau_t *context)
@@ -130,9 +130,9 @@ static __always_inline void native_set_aau_aaldis_aaldas(
  * and comparison with aasr.iab was taken.
  */
 static inline void
-native_get_aau_context_v2(e2k_aau_t *context, e2k_aasr_t aasr)
+native_get_aau_context_v3(e2k_aau_t *context, e2k_aasr_t aasr)
 {
-	NATIVE_GET_AAU_CONTEXT_V2(context, aasr);
+	NATIVE_GET_AAU_CONTEXT_V3(context, aasr);
 }
 static inline void
 native_get_aau_context_v5(e2k_aau_t *context, e2k_aasr_t aasr)
@@ -160,24 +160,24 @@ static __always_inline void native_set_aau_context(const e2k_aau_t *context,
 /* native kernel without virtualization */
 /* or native host kernel with virtualization support */
 
-#define GET_ARRAY_DESCRIPTORS_V2(aau_context)				\
+#define GET_ARRAY_DESCRIPTORS_V3(aau_context)				\
 ({									\
-	native_get_array_descriptors_v2(aau_context);			\
+	native_get_array_descriptors_v3(aau_context);			\
 })
 #define GET_ARRAY_DESCRIPTORS_V5(aau_context)				\
 ({									\
 	native_get_array_descriptors_v5(aau_context);			\
 })
-#define	GET_SYNCHRONOUS_PART_V2(aau_context)				\
+#define	GET_SYNCHRONOUS_PART_V3(aau_context)				\
 ({									\
-	native_get_synchronous_part_v2(aau_context);			\
+	native_get_synchronous_part_v3(aau_context);			\
 })
 #define	GET_SYNCHRONOUS_PART_V5(aau_context)				\
 ({									\
 	native_get_synchronous_part_v5(aau_context);			\
 })
 
-#define	GET_AAU_CONTEXT_V2(cntx, aasr)	native_get_aau_context_v2(cntx, aasr)
+#define	GET_AAU_CONTEXT_V3(cntx, aasr)	native_get_aau_context_v3(cntx, aasr)
 #define	GET_AAU_CONTEXT_V5(cntx, aasr)	native_get_aau_context_v5(cntx, aasr)
 
 #define	SAVE_AAU_MASK_REGS(aau_context, aasr)			\
@@ -193,7 +193,7 @@ static __always_inline void native_set_aau_context(const e2k_aau_t *context,
 		NATIVE_RESTORE_AADS(aau_regs)
 
 
-#define SAVE_AALDIS_V2(regs)	NATIVE_SAVE_AALDIS_V2(regs)
+#define SAVE_AALDIS_V3(regs)	NATIVE_SAVE_AALDIS_V3(regs)
 #define SAVE_AALDIS_V5(regs)	NATIVE_SAVE_AALDIS_V5(regs)
 
 #define SAVE_AALDA(aaldas)					\

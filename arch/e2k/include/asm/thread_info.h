@@ -51,6 +51,8 @@ typedef struct thread_info {
 	unsigned long		flags;		/* low level flags */
 
 	unsigned long		status;		/* thread synchronous flags */
+	int			preempt_lazy_count;	/* 0 => lazy preemptable
+							  <0 => BUG */
 	long long		irq_enter_clk;	/* CPU clock when irq enter */
 						/* occured */
 	mm_segment_t		addr_limit;	/* thread address space */
@@ -202,6 +204,7 @@ typedef struct thread_info {
 #define TIF_NOHZ		8
 #define TIF_SYSCALL_AUDIT	9	/* syscall auditing active */
 #define TIF_SECCOMP		10	/* secure computing */
+#define TIF_NEED_RESCHED_LAZY	11	/* lazy rescheduling necessary */
 #define	TIF_USD_NOT_EXPANDED	14	/* local data stack cannot be */
 					/* expanded (fixed size) */
 					/* not used yet */
@@ -296,6 +299,8 @@ typedef struct thread_info {
 /* the host thread is switching to VCPU running mode
  * and wait for interception (trap on PV mode) */
 #define	TS_HOST_AT_VCPU_MODE		0x00001000
+#define	TS_HOST_TO_GUEST_USER		0x00002000
+#define	TS_HOST_SWITCH_MMU_PID		0x00004000
 
 #define	THREAD_SIZE		KERNEL_STACKS_SIZE
 #define THREAD_SIZE_ORDER	order_base_2(KERNEL_STACKS_SIZE / PAGE_SIZE)
@@ -407,6 +412,7 @@ void clear_g_list(struct thread_info *thread_info) { }
 	}, \
 	INIT_OLD_U_HW_STACKS			\
 	INIT_LAST_IC_FLUSH_CPU			\
+	.preempt_lazy_count = 0,		\
 }
 
 extern void arch_task_cache_init(void);

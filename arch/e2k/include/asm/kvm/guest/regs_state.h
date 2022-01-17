@@ -27,9 +27,9 @@ extern void kvm_restore_local_glob_regs(const local_gregs_t *l_gregs,
 extern void kvm_get_all_user_glob_regs(global_regs_t *gregs);
 
 static inline void
-guest_save_glob_regs_v2(global_regs_t *gregs)
+guest_save_glob_regs_v3(global_regs_t *gregs)
 {
-	kvm_guest_save_gregs_v2(gregs);
+	kvm_guest_save_gregs_v3(gregs);
 }
 
 static inline void
@@ -39,9 +39,9 @@ guest_save_glob_regs_v5(global_regs_t *gregs)
 }
 
 static inline void
-guest_save_glob_regs_dirty_bgr_v2(global_regs_t *gregs)
+guest_save_glob_regs_dirty_bgr_v3(global_regs_t *gregs)
 {
-	kvm_guest_save_gregs_v2(gregs);
+	kvm_guest_save_gregs_v3(gregs);
 }
 
 static inline void
@@ -51,9 +51,9 @@ guest_save_glob_regs_dirty_bgr_v5(global_regs_t *gregs)
 }
 
 static inline void
-guest_save_local_glob_regs_v2(local_gregs_t *l_gregs, bool is_signal)
+guest_save_local_glob_regs_v3(local_gregs_t *l_gregs, bool is_signal)
 {
-	kvm_guest_save_local_gregs_v2(l_gregs, is_signal);
+	kvm_guest_save_local_gregs_v3(l_gregs, is_signal);
 	if (KERNEL_GREGS_MAX_MASK & LOCAL_GREGS_USER_MASK)
 		copy_k_gregs_to_l_gregs(l_gregs,
 				&current_thread_info()->k_gregs);
@@ -69,9 +69,9 @@ guest_save_local_glob_regs_v5(local_gregs_t *l_gregs, bool is_signal)
 }
 
 static inline void
-guest_restore_glob_regs_v2(const global_regs_t *gregs)
+guest_restore_glob_regs_v3(const global_regs_t *gregs)
 {
-	kvm_guest_restore_gregs_v2(gregs);
+	kvm_guest_restore_gregs_v3(gregs);
 }
 
 static inline void
@@ -81,9 +81,9 @@ guest_restore_glob_regs_v5(const global_regs_t *gregs)
 }
 
 static inline void
-guest_restore_local_glob_regs_v2(const local_gregs_t *l_gregs, bool is_signal)
+guest_restore_local_glob_regs_v3(const local_gregs_t *l_gregs, bool is_signal)
 {
-	kvm_guest_restore_local_gregs_v2(l_gregs, is_signal);
+	kvm_guest_restore_local_gregs_v3(l_gregs, is_signal);
 	if (KERNEL_GREGS_MAX_MASK & LOCAL_GREGS_USER_MASK)
 		get_k_gregs_from_l_regs(&current_thread_info()->k_gregs,
 					l_gregs);
@@ -334,10 +334,10 @@ do { \
 		KVM_RESTORE_COMMON_REGS(regs)
 
 static inline void
-save_glob_regs_v2(global_regs_t *gregs)
+save_glob_regs_v3(global_regs_t *gregs)
 {
 	if (IS_HV_GM()) {
-		guest_save_glob_regs_v2(gregs);
+		guest_save_glob_regs_v3(gregs);
 	} else {
 		kvm_save_glob_regs(gregs);
 	}
@@ -354,10 +354,10 @@ save_glob_regs_v5(global_regs_t *gregs)
 }
 
 static inline void
-save_glob_regs_dirty_bgr_v2(global_regs_t *gregs)
+save_glob_regs_dirty_bgr_v3(global_regs_t *gregs)
 {
 	if (IS_HV_GM()) {
-		guest_save_glob_regs_dirty_bgr_v2(gregs);
+		guest_save_glob_regs_dirty_bgr_v3(gregs);
 	} else {
 		kvm_save_glob_regs_dirty_bgr(gregs);
 	}
@@ -374,10 +374,10 @@ save_glob_regs_dirty_bgr_v5(global_regs_t *gregs)
 }
 
 static inline void
-save_local_glob_regs_v2(local_gregs_t *l_gregs, bool is_signal)
+save_local_glob_regs_v3(local_gregs_t *l_gregs, bool is_signal)
 {
 	if (IS_HV_GM()) {
-		guest_save_local_glob_regs_v2(l_gregs, is_signal);
+		guest_save_local_glob_regs_v3(l_gregs, is_signal);
 	} else {
 		kvm_save_local_glob_regs(l_gregs, is_signal);
 	}
@@ -394,10 +394,10 @@ save_local_glob_regs_v5(local_gregs_t *l_gregs, bool is_signal)
 }
 
 static inline void
-restore_glob_regs_v2(const global_regs_t *gregs)
+restore_glob_regs_v3(const global_regs_t *gregs)
 {
 	if (IS_HV_GM()) {
-		guest_restore_glob_regs_v2(gregs);
+		guest_restore_glob_regs_v3(gregs);
 	} else {
 		kvm_restore_glob_regs(gregs);
 	}
@@ -414,10 +414,10 @@ restore_glob_regs_v5(const global_regs_t *gregs)
 }
 
 static inline void
-restore_local_glob_regs_v2(const local_gregs_t *l_gregs, bool is_signal)
+restore_local_glob_regs_v3(const local_gregs_t *l_gregs, bool is_signal)
 {
 	if (IS_HV_GM())
-		guest_restore_local_glob_regs_v2(l_gregs, is_signal);
+		guest_restore_local_glob_regs_v3(l_gregs, is_signal);
 	else
 		kvm_restore_local_glob_regs(l_gregs, is_signal);
 }

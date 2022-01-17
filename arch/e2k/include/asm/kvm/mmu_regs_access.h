@@ -277,6 +277,19 @@ KVM_FLUSH_DCACHE_LINE(e2k_addr_t virt_addr)
 }
 
 /*
+ * Read DCACHE L1 fault_reg register
+ */
+static inline u64
+KVM_READ_L1_FAULT_REG(void)
+{
+	if (IS_HV_GM()) {
+		return NATIVE_READ_L1_FAULT_REG();
+	} else {
+		return kvm_read_dcache_l1_fault_reg();
+	}
+}
+
+/*
  * Clear DCACHE L1 set
  */
 static inline void
@@ -641,6 +654,14 @@ static inline void FLUSH_DCACHE_LINE_OFFSET(e2k_addr_t virt_addr, size_t offset)
 	KVM_FLUSH_DCACHE_LINE(virt_addr + offset);
 }
 
+/*
+ * Read DCACHE L1 fault_reg register
+ */
+static inline u64
+READ_L1_FAULT_REG(void)
+{
+	return KVM_READ_L1_FAULT_REG();
+}
 
 /*
  * Clear DCACHE L1 set

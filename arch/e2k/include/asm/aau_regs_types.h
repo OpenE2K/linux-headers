@@ -22,20 +22,20 @@
 
 #if	CONFIG_CPU_ISET >= 5
 #  define	IS_AAU_ISET_V5()	true
-#  define	IS_AAU_ISET_V2()	false
+#  define	IS_AAU_ISET_V3()	false
 #  define	IS_AAU_ISET_GENERIC()	false
 #elif	CONFIG_CPU_ISET >= 1
-#  define	IS_AAU_ISET_V2()	true
+#  define	IS_AAU_ISET_V3()	true
 #  define	IS_AAU_ISET_V5()	false
 #  define	IS_AAU_ISET_GENERIC()	false
 #elif	CONFIG_CPU_ISET == 0
 #  define	IS_AAU_ISET_GENERIC()	true
-#  define	IS_AAU_ISET_V2()	false
+#  define	IS_AAU_ISET_V3()	false
 #  define	IS_AAU_ISET_V5()	false
 #else	/* CONFIG_CPU_ISET undefined or negative */
 # warning "Undefined CPU ISET VERSION #, IS_AAU_ISET_Vx is defined dinamicaly"
 #  define	IS_AAU_ISET_GENERIC()	true
-#  define	IS_AAU_ISET_V2()	false
+#  define	IS_AAU_ISET_V3()	false
 #  define	IS_AAU_ISET_V5()	false
 #endif	/* CONFIG_CPU_ISET 0-6 */
 

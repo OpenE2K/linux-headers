@@ -27,6 +27,8 @@ union e2k_dimtp;
 
 #include <asm/kvm/machdep.h>	/* virtualization support */
 
+typedef void (*restore_gregs_fn_t)(const struct global_regs *);
+typedef void (*save_gregs_fn_t)(struct global_regs *);
 typedef struct machdep {
 	int		native_id;		/* machine Id */
 	int		native_rev;		/* cpu revision */
@@ -48,12 +50,6 @@ typedef struct machdep {
 	e2k_addr_t	pcicfg_area_phys_base;
 	e2k_size_t	pcicfg_area_size;
 	e2k_addr_t	nsr_area_phys_base;
-	e2k_size_t	nbsr_area_offset;
-	e2k_size_t	nbsr_area_size;
-	e2k_addr_t	copsr_area_phys_base;
-	e2k_size_t	copsr_area_size;
-	u8		mlt_size;
-	u8		tlb_lines_bits_num;
 	u64		tlb_addr_line_num;
 	u64		tlb_addr_line_num2;
 	u8		tlb_addr_line_num_shift2;
@@ -80,16 +76,17 @@ typedef struct machdep {
 	void (*save_kernel_gregs)(struct kernel_gregs *);
 	void (*save_gregs)(struct global_regs *);
 	void (*save_local_gregs)(struct local_gregs *, bool is_signal);
-	void (*save_gregs_dirty_bgr)(struct global_regs *);
+	save_gregs_fn_t save_gregs_dirty_bgr;
+	restore_gregs_fn_t restore_gregs;
 	void (*save_gregs_on_mask)(struct global_regs *, bool dirty_bgr,
 					unsigned long not_save_gregs_mask);
-	void (*restore_gregs)(const struct global_regs *);
 	void (*restore_local_gregs)(const struct local_gregs *, bool is_signal);
 	void (*restore_gregs_on_mask)(struct global_regs *, bool dirty_bgr,
 					unsigned long not_restore_gregs_mask);
 
 	void (*save_dimtp)(union e2k_dimtp *);
 	void (*restore_dimtp)(const union e2k_dimtp *);
+	void (*clear_dimtp)(void);
 
 	void (*save_kvm_context)(struct kvm_vcpu_arch *);
 	void (*restore_kvm_context)(const struct kvm_vcpu_arch *);
@@ -112,8 +109,6 @@ typedef struct machdep {
 	void		(*invalidate_MLT)(void);
 	void		(*get_and_invalidate_MLT_context)(struct e2k_mlt *mlt_state);
 #endif
-
-	void		(*flushts)(void);
 
 	void		(*setup_arch)(void);
 	void		(*setup_cpu_info)(struct cpuinfo_e2k *c);
@@ -180,49 +175,12 @@ extern cpuhas_initcall_t __cpuhas_initcalls[], __cpuhas_initcalls_end[];
  * set them anyway to make kernel running on a simulator
  * behave in the same way as on real hardware. */
 
-/* #47176 - Large pages do not work.
- * Workaround - do not use them. */
-CPUHAS(CPU_HWBUG_LARGE_PAGES,
-		!IS_ENABLED(CONFIG_CPU_ES2),
-		false,
-		cpu == IDR_ES2_DSP_MDL && revision < 1);
-/* #56947 - lapic timer can lose interrupts.
- * Workaround - do not use oneshot mode. */
-CPUHAS(CPU_HWBUG_LAPIC_TIMER,
-		!IS_ENABLED(CONFIG_CPU_ES2),
-		false,
-		cpu == IDR_ES2_DSP_MDL && revision < 1);
-/* #69194 - PIO reads can hang processor.
- * Workaround - serialize PIO reads on every CPU. */
-CPUHAS(CPU_HWBUG_PIO_READS,
-		!IS_ENABLED(CONFIG_CPU_ES2),
-		false,
-		cpu == IDR_ES2_DSP_MDL && (revision <= 1 || revision == 6) ||
-		cpu == IDR_ES2_RU_MDL && revision <= 1);
-/* #71610 - Atomic operations can be non-atomic
- * Workaround - flush data cache line.
- * This workaround increases the count of DCACHE flushes,
- * Turmalin has hardware bug with flushes so don't use
- * this workaround on it. */
-CPUHAS(CPU_HWBUG_ATOMIC,
-		!IS_ENABLED(CONFIG_CPU_ES2),
-		false,
-		cpu == IDR_ES2_DSP_MDL);
 /* #58397, #76626 - CLW does not work.
  * Workaround - do not use it. */
 CPUHAS(CPU_HWBUG_CLW,
-		!IS_ENABLED(CONFIG_CPU_ES2) && !IS_ENABLED(CONFIG_CPU_E2S),
+		!IS_ENABLED(CONFIG_CPU_E2S),
 		false,
-		cpu == IDR_ES2_DSP_MDL && (revision <= 1 || revision == 6) ||
-		cpu == IDR_ES2_RU_MDL && revision <= 1 ||
 		cpu == IDR_E2S_MDL && revision == 0);
-/* #76626 - "Page accessed" bit in PTE does not work.
- * Workaround - always set it. */
-CPUHAS(CPU_HWBUG_PAGE_A,
-		!IS_ENABLED(CONFIG_CPU_ES2),
-		false,
-		cpu == IDR_ES2_DSP_MDL && (revision <= 1 || revision == 6) ||
-		cpu == IDR_ES2_RU_MDL && revision <= 1);
 /* #78411 - Sometimes exc_illegal_instr_addr is generated
  * instead of exc_instr_page_miss.
  * Workaround - always return to user from exc_illegal_instr_addr. */
@@ -230,40 +188,23 @@ CPUHAS(CPU_HWBUG_SPURIOUS_EXC_ILL_INSTR_ADDR,
 		!IS_ENABLED(CONFIG_CPU_E2S),
 		false,
 		cpu == IDR_E2S_MDL && revision <= 1);
-/* #83160 - unaligned loads do not work
- * Workaround - limit the stream of unaligned loads to less
- * than 32 bytes per cycle and put "wait ld_c" before it. */
-CPUHAS(CPU_HWBUG_UNALIGNED_LOADS,
-		!IS_ENABLED(CONFIG_CPU_ES2),
-		false,
-		cpu == IDR_ES2_DSP_MDL && (revision <= 1 || revision == 6) ||
-		cpu == IDR_ES2_RU_MDL && revision <= 1)
-/* #83884 - es2 deadlocks on DMA to neighbour node.
- * #100984 - # DMA to neighbour node slows down.
- * Workaround - allocate DMA buffers only in the device node. */
+ /* #100984 - e8c: DMA to neighbour node slows down.
+  * #136177 - no DMA through the links B and C.
+  * Workaround - allocate DMA buffers only in the device node. */
 CPUHAS(CPU_HWBUG_CANNOT_DO_DMA_IN_NEIGHBOUR_NODE,
-		!IS_ENABLED(CONFIG_CPU_ES2) && !IS_ENABLED(CONFIG_CPU_E8C),
+		!IS_ENABLED(CONFIG_CPU_E8C) && !IS_ENABLED(CONFIG_CPU_E16C),
 		false,
-		cpu == IDR_ES2_DSP_MDL && (revision <= 1 || revision == 6) ||
-		cpu == IDR_ES2_RU_MDL && revision <= 1 ||
-		cpu == IDR_E8C_MDL && revision <= 2);
-/* #83884 - es2 deadlock on DMA at
- *	 (APIC_DEFAULT_PHYS_BASE & 0x7fffFFFF) address.
- * Workaround - reserve the 4K page at this address. */
-CPUHAS(CPU_HWBUG_DMA_AT_APIC_ADDR,
-		!IS_ENABLED(CONFIG_CPU_ES2),
-		false,
-		cpu == IDR_ES2_DSP_MDL);
+		cpu == IDR_E8C_MDL && revision <= 2 ||
+		cpu == IDR_E16C_MDL && revision == 0);
 /* #88644 - data profiling events are lost if overflow happens
  * under closed NM interrupts; also DDMCR writing does not clear
  * pending exc_data_debug exceptions.
  * Workaround - disable data monitor profiling in kernel. */
 CPUHAS(CPU_HWBUG_KERNEL_DATA_MONITOR,
 		IS_ENABLED(CONFIG_E2K_MACHINE),
-		IS_ENABLED(CONFIG_CPU_ES2) || IS_ENABLED(CONFIG_CPU_E2S) ||
-			IS_ENABLED(CONFIG_CPU_E8C) || IS_ENABLED(CONFIG_CPU_E1CP),
-		cpu == IDR_ES2_DSP_MDL || cpu == IDR_ES2_RU_MDL ||
-			cpu == IDR_E2S_MDL || cpu == IDR_E8C_MDL ||
+		IS_ENABLED(CONFIG_CPU_E2S) || IS_ENABLED(CONFIG_CPU_E8C) ||
+			IS_ENABLED(CONFIG_CPU_E1CP),
+		cpu == IDR_E2S_MDL || cpu == IDR_E8C_MDL ||
 			cpu == IDR_E1CP_MDL);
 /* #89495 - write barrier does not work (even for atomics).
  * Workaround - special command sequence after every read-acquire. */
@@ -281,10 +222,9 @@ CPUHAS(CPU_HWBUG_BAD_RESET,
  * Workaround - use HS.lng from the instruction being replaced. */
 CPUHAS(CPU_HWBUG_BREAKPOINT_INSTR,
 		IS_ENABLED(CONFIG_E2K_MACHINE),
-		IS_ENABLED(CONFIG_CPU_ES2) || IS_ENABLED(CONFIG_CPU_E2S) ||
-			IS_ENABLED(CONFIG_CPU_E8C) || IS_ENABLED(CONFIG_CPU_E8C2),
-		cpu == IDR_ES2_DSP_MDL || cpu == IDR_ES2_RU_MDL ||
-			cpu == IDR_E2S_MDL || cpu == IDR_E8C_MDL ||
+		IS_ENABLED(CONFIG_CPU_E2S) || IS_ENABLED(CONFIG_CPU_E8C) ||
+			IS_ENABLED(CONFIG_CPU_E8C2),
+		cpu == IDR_E2S_MDL || cpu == IDR_E8C_MDL ||
 			cpu == IDR_E8C2_MDL);
 /* #92834, #96516 - hang because of hardware problems.
  * Workaround - boot activates watchdog, kernel should disable it */
@@ -310,19 +250,16 @@ CPUHAS(CPU_HWBUG_WC_DAM,
  * Workaround - treat it as s_f=1, store=1, sru=1 */
 CPUHAS(CPU_HWBUG_TRAP_CELLAR_S_F,
 		IS_ENABLED(CONFIG_E2K_MACHINE) && !IS_ENABLED(CONFIG_CPU_E8C2),
-		IS_ENABLED(CONFIG_CPU_ES2) || IS_ENABLED(CONFIG_CPU_E2S) ||
-			IS_ENABLED(CONFIG_CPU_E8C) || IS_ENABLED(CONFIG_CPU_E1CP),
-		cpu == IDR_ES2_DSP_MDL || cpu == IDR_ES2_RU_MDL ||
-			cpu == IDR_E2S_MDL || cpu == IDR_E8C_MDL ||
+		IS_ENABLED(CONFIG_CPU_E2S) || IS_ENABLED(CONFIG_CPU_E8C) ||
+			IS_ENABLED(CONFIG_CPU_E1CP),
+		cpu == IDR_E2S_MDL || cpu == IDR_E8C_MDL ||
 			cpu == IDR_E1CP_MDL || cpu == IDR_E8C2_MDL && revision == 0);
 /* #97594 - %cr1_lo.ss flag is lost if ext. interrupt arrives faster.
  * Workaround - manually set %cr1_lo.ss again in interrupt handler */
 CPUHAS(CPU_HWBUG_SS,
-		!IS_ENABLED(CONFIG_CPU_ES2) && !IS_ENABLED(CONFIG_CPU_E2S) &&
-		!IS_ENABLED(CONFIG_CPU_E8C) && !IS_ENABLED(CONFIG_CPU_E1CP) &&
-		!IS_ENABLED(CONFIG_CPU_E8C2),
+		!IS_ENABLED(CONFIG_CPU_E2S) && !IS_ENABLED(CONFIG_CPU_E8C) &&
+		!IS_ENABLED(CONFIG_CPU_E1CP) && !IS_ENABLED(CONFIG_CPU_E8C2),
 		false,
-		cpu == IDR_ES2_DSP_MDL || cpu == IDR_ES2_RU_MDL ||
 		cpu == IDR_E2S_MDL && revision <= 2 ||
 		cpu == IDR_E8C_MDL && revision <= 2 ||
 		cpu == IDR_E1CP_MDL || cpu == IDR_E8C2_MDL && revision == 0);
@@ -330,30 +267,25 @@ CPUHAS(CPU_HWBUG_SS,
  * Workaround - insert 'wait ma_c' barrier */
 CPUHAS(CPU_HWBUG_AAU_AALDV,
 		IS_ENABLED(CONFIG_E2K_MACHINE) && !IS_ENABLED(CONFIG_CPU_E8C2),
-		IS_ENABLED(CONFIG_CPU_ES2) || IS_ENABLED(CONFIG_CPU_E2S) ||
-			IS_ENABLED(CONFIG_CPU_E8C) || IS_ENABLED(CONFIG_CPU_E1CP),
-		cpu == IDR_ES2_DSP_MDL || cpu == IDR_ES2_RU_MDL ||
-			cpu == IDR_E2S_MDL || cpu == IDR_E8C_MDL ||
+		IS_ENABLED(CONFIG_CPU_E2S) || IS_ENABLED(CONFIG_CPU_E8C) ||
+		IS_ENABLED(CONFIG_CPU_E1CP),
+		cpu == IDR_E2S_MDL || cpu == IDR_E8C_MDL ||
 			cpu == IDR_E1CP_MDL || cpu == IDR_E8C2_MDL && revision == 0);
 /* #103223 - LAPIC does not send EoI to IO_APIC for level interrupts.
  * Workaround - wait under closed interrupts until APIC_ISR clears */
 CPUHAS(CPU_HWBUG_LEVEL_EOI,
 		IS_ENABLED(CONFIG_E2K_MACHINE),
-		IS_ENABLED(CONFIG_CPU_ES2) || IS_ENABLED(CONFIG_CPU_E2S) ||
-			IS_ENABLED(CONFIG_CPU_E8C) || IS_ENABLED(CONFIG_CPU_E1CP) ||
-			IS_ENABLED(CONFIG_CPU_E8C2),
-		cpu == IDR_ES2_DSP_MDL || cpu == IDR_ES2_RU_MDL ||
-			cpu == IDR_E2S_MDL || cpu == IDR_E8C_MDL ||
+		IS_ENABLED(CONFIG_CPU_E2S) || IS_ENABLED(CONFIG_CPU_E8C) ||
+			IS_ENABLED(CONFIG_CPU_E1CP) || IS_ENABLED(CONFIG_CPU_E8C2),
+		cpu == IDR_E2S_MDL || cpu == IDR_E8C_MDL ||
 			cpu == IDR_E1CP_MDL || cpu == IDR_E8C2_MDL);
 /* #104865 - hardware might generate a false single step interrupt
  * Workaround - clean frame 0 of PCS during the allocation */
 CPUHAS(CPU_HWBUG_FALSE_SS,
 		IS_ENABLED(CONFIG_E2K_MACHINE) && !IS_ENABLED(CONFIG_CPU_E2S) &&
 			!IS_ENABLED(CONFIG_CPU_E8C),
-		IS_ENABLED(CONFIG_CPU_ES2) || IS_ENABLED(CONFIG_CPU_E1CP) ||
-			IS_ENABLED(CONFIG_CPU_E8C2),
-		cpu == IDR_ES2_DSP_MDL || cpu == IDR_ES2_RU_MDL ||
-			cpu == IDR_E2S_MDL && revision <= 2 ||
+		IS_ENABLED(CONFIG_CPU_E1CP) || IS_ENABLED(CONFIG_CPU_E8C2),
+		cpu == IDR_E2S_MDL && revision <= 2 ||
 			cpu == IDR_E8C_MDL && revision <= 2 ||
 			cpu == IDR_E1CP_MDL || cpu == IDR_E8C2_MDL);
 /* #117649 - false exc_data_debug are generated based on _previous_
@@ -363,11 +295,9 @@ CPUHAS(CPU_HWBUG_FALSE_SS,
 CPUHAS(CPU_HWBUG_SPURIOUS_EXC_DATA_DEBUG,
 		IS_ENABLED(CONFIG_E2K_MACHINE) && !IS_ENABLED(CONFIG_CPU_E16C) &&
 			!IS_ENABLED(CONFIG_CPU_E2C3),
-		IS_ENABLED(CONFIG_CPU_ES2) || IS_ENABLED(CONFIG_CPU_E2S) ||
-			IS_ENABLED(CONFIG_CPU_E8C) || IS_ENABLED(CONFIG_CPU_E1CP) ||
-			IS_ENABLED(CONFIG_CPU_E8C2),
-		cpu == IDR_ES2_DSP_MDL || cpu == IDR_ES2_RU_MDL ||
-			cpu == IDR_E2S_MDL || cpu == IDR_E8C_MDL ||
+		IS_ENABLED(CONFIG_CPU_E2S) || IS_ENABLED(CONFIG_CPU_E8C) ||
+			IS_ENABLED(CONFIG_CPU_E1CP) || IS_ENABLED(CONFIG_CPU_E8C2),
+		cpu == IDR_E2S_MDL || cpu == IDR_E8C_MDL ||
 			cpu == IDR_E1CP_MDL || cpu == IDR_E8C2_MDL ||
 			cpu == IDR_E16C_MDL && revision == 0 ||
 			cpu == IDR_E2C3_MDL && revision == 0);
@@ -396,11 +326,9 @@ CPUHAS(CPU_HWBUG_E16C_SLEEP,
 CPUHAS(CPU_HWBUG_L1I_STOPS_WORKING,
 		IS_ENABLED(CONFIG_E2K_MACHINE) && !IS_ENABLED(CONFIG_CPU_E16C) &&
 			!IS_ENABLED(CONFIG_CPU_E2C3),
-		IS_ENABLED(CONFIG_CPU_ES2) || IS_ENABLED(CONFIG_CPU_E2S) ||
-			IS_ENABLED(CONFIG_CPU_E8C) || IS_ENABLED(CONFIG_CPU_E1CP) ||
-			IS_ENABLED(CONFIG_CPU_E8C2),
-		cpu == IDR_ES2_DSP_MDL || cpu == IDR_ES2_RU_MDL ||
-			cpu == IDR_E2S_MDL || cpu == IDR_E8C_MDL ||
+		IS_ENABLED(CONFIG_CPU_E2S) || IS_ENABLED(CONFIG_CPU_E8C) ||
+		IS_ENABLED(CONFIG_CPU_E1CP) || IS_ENABLED(CONFIG_CPU_E8C2),
+		cpu == IDR_E2S_MDL || cpu == IDR_E8C_MDL ||
 			cpu == IDR_E1CP_MDL || cpu == IDR_E8C2_MDL ||
 			cpu == IDR_E16C_MDL && revision == 0 ||
 			cpu == IDR_E2C3_MDL && revision == 0);
@@ -452,12 +380,11 @@ CPUHAS(CPU_HWBUG_VIRT_PUSD_PSL,
  * Valid sequences are: sbr, nop, usd.lo, usd.hi OR sbr, usd.lo, usd.hi, usd.lo */
 CPUHAS(CPU_HWBUG_USD_ALIGNMENT,
 		IS_ENABLED(CONFIG_E2K_MACHINE),
-		IS_ENABLED(CONFIG_CPU_ES2) || IS_ENABLED(CONFIG_CPU_E2S) ||
-			IS_ENABLED(CONFIG_CPU_E8C) || IS_ENABLED(CONFIG_CPU_E1CP) ||
-			IS_ENABLED(CONFIG_CPU_E8C2) || IS_ENABLED(CONFIG_CPU_E16C) ||
-			IS_ENABLED(CONFIG_CPU_E2C3) || IS_ENABLED(CONFIG_CPU_E12C),
-		cpu == IDR_ES2_DSP_MDL || cpu == IDR_ES2_RU_MDL ||
-			cpu == IDR_E2S_MDL || cpu == IDR_E8C_MDL ||
+		IS_ENABLED(CONFIG_CPU_E2S) || IS_ENABLED(CONFIG_CPU_E8C) ||
+			IS_ENABLED(CONFIG_CPU_E1CP) || IS_ENABLED(CONFIG_CPU_E8C2) ||
+			IS_ENABLED(CONFIG_CPU_E16C) || IS_ENABLED(CONFIG_CPU_E2C3) ||
+			IS_ENABLED(CONFIG_CPU_E12C),
+		cpu == IDR_E2S_MDL || cpu == IDR_E8C_MDL ||
 			cpu == IDR_E1CP_MDL || cpu == IDR_E8C2_MDL ||
 			cpu == IDR_E16C_MDL || cpu == IDR_E2C3_MDL ||
 			cpu == IDR_E12C_MDL);
@@ -469,7 +396,6 @@ CPUHAS(CPU_HWBUG_VIRT_PSIZE_INTERCEPTION,
 		false,
 		cpu == IDR_E16C_MDL && revision == 0 ||
 		cpu == IDR_E2C3_MDL && revision == 0);
-
 /* #130066, #134351 - L1/L2 do not respect "lal"/"las"/"sas"/"st_rel" barriers.
  * Workaround - do not use "las"/"sas"/"st_rel", and add 5 nops after "lal".
  * #133605 - "lal"/"las"/"sas"/"sal" barriers do not work in certain conditions.
@@ -489,7 +415,6 @@ CPUHAS(CPU_HWBUG_SOFT_WAIT_E8C2,
 		IS_ENABLED(CONFIG_E2K_MACHINE),
 		IS_ENABLED(CONFIG_CPU_E8C2),
 		cpu == IDR_E8C2_MDL);
-
 /* #132693 - C3 idle state does not work.
  * Workaround - do not use it. */
 CPUHAS(CPU_HWBUG_C3,
@@ -501,29 +426,14 @@ CPUHAS(CPU_HWBUG_C3,
  * Not bugs but features go here
  */
 
-/* On some processor's revisions writecombine memory
- * in prefetchable PCI area is not allowed. */
-CPUHAS(CPU_FEAT_WC_PCI_PREFETCH,
-		!IS_ENABLED(CONFIG_CPU_ES2),
-		true,
-		!((cpu == IDR_ES2_DSP_MDL || cpu == IDR_ES2_RU_MDL) &&
-		  revision == 0));
-/* #82499 - Instruction Cache must be handled carefully
- * when flush_dc_line also flushes IC by physical address. */
-CPUHAS(CPU_FEAT_FLUSH_DC_IC,
-		CONFIG_CPU_ISET != 0,
-		CONFIG_CPU_ISET >= 3,
-		iset_ver >= E2K_ISET_V3);
 /* Rely on IDR instead of iset version to choose between APIC and EPIC.
  * For guest we use it's own fake IDR so that we choose between APIC and
  * EPIC based on what hardware guest *thinks* it's being executed on. */
 CPUHAS(CPU_FEAT_EPIC,
 		IS_ENABLED(CONFIG_E2K_MACHINE) &&
 		!IS_ENABLED(CONFIG_KVM_GUEST_KERNEL),
-		!IS_ENABLED(CONFIG_CPU_ES2) && !IS_ENABLED(CONFIG_CPU_E2S) &&
-		!IS_ENABLED(CONFIG_CPU_E8C) && !IS_ENABLED(CONFIG_CPU_E1CP) &&
-		!IS_ENABLED(CONFIG_CPU_E8C2),
-		guest_cpu != IDR_ES2_DSP_MDL && guest_cpu != IDR_ES2_RU_MDL &&
+		!IS_ENABLED(CONFIG_CPU_E2S) && !IS_ENABLED(CONFIG_CPU_E8C) &&
+		!IS_ENABLED(CONFIG_CPU_E1CP) && !IS_ENABLED(CONFIG_CPU_E8C2),
 		guest_cpu != IDR_E2S_MDL && guest_cpu != IDR_E8C_MDL &&
 		guest_cpu != IDR_E1CP_MDL && guest_cpu != IDR_E8C2_MDL);
 /* Shows which user registers must be saved upon trap entry/exit */
@@ -543,12 +453,10 @@ CPUHAS(CPU_FEAT_QPREG,
 /* Hardware prefetcher that resides in L2 and works on phys. addresses */
 CPUHAS(CPU_FEAT_HW_PREFETCHER,
 		IS_ENABLED(CONFIG_E2K_MACHINE),
-		!IS_ENABLED(CONFIG_CPU_ES2) && !IS_ENABLED(CONFIG_CPU_E2S) &&
-			!IS_ENABLED(CONFIG_CPU_E8C) && !IS_ENABLED(CONFIG_CPU_E1CP) &&
-			!IS_ENABLED(CONFIG_CPU_E8C2) && !IS_ENABLED(CONFIG_CPU_E16C) &&
-			!IS_ENABLED(CONFIG_CPU_E2C3),
-		cpu != IDR_ES2_DSP_MDL && cpu != IDR_ES2_RU_MDL &&
-			cpu != IDR_E2S_MDL && cpu != IDR_E8C_MDL &&
+		!IS_ENABLED(CONFIG_CPU_E2S) && !IS_ENABLED(CONFIG_CPU_E8C) &&
+		!IS_ENABLED(CONFIG_CPU_E1CP) && !IS_ENABLED(CONFIG_CPU_E8C2) &&
+		!IS_ENABLED(CONFIG_CPU_E16C) && !IS_ENABLED(CONFIG_CPU_E2C3),
+		cpu != IDR_E2S_MDL && cpu != IDR_E8C_MDL &&
 			cpu != IDR_E1CP_MDL && cpu != IDR_E8C2_MDL &&
 			cpu != IDR_E16C_MDL && cpu != IDR_E2C3_MDL);
 /* When flushing high order page table entries we must also flush
@@ -591,10 +499,6 @@ CPUHAS(CPU_FEAT_FILLC,
 		CONFIG_CPU_ISET >= 6,
 		iset_ver >= E2K_ISET_V6);
 /* Optimized version of machine.iset check */
-CPUHAS(CPU_FEAT_ISET_V3,
-		CONFIG_CPU_ISET != 0,
-		CONFIG_CPU_ISET >= 3,
-		iset_ver >= E2K_ISET_V3);
 CPUHAS(CPU_FEAT_ISET_V5,
 		CONFIG_CPU_ISET != 0,
 		CONFIG_CPU_ISET >= 5,
@@ -674,60 +578,56 @@ extern __nodedata pt_struct_t	pgtable_struct;
 # define IS_HV_GM()	(machine.gmi)
 #endif
 
-extern void save_kernel_gregs_v2(struct kernel_gregs *);
+extern void save_kernel_gregs_v3(struct kernel_gregs *);
 extern void save_kernel_gregs_v5(struct kernel_gregs *);
-extern void save_gregs_v2(struct global_regs *);
+extern void save_gregs_v3(struct global_regs *);
 extern void save_gregs_v5(struct global_regs *);
-extern void save_local_gregs_v2(struct local_gregs *, bool is_signal);
+extern void save_local_gregs_v3(struct local_gregs *, bool is_signal);
 extern void save_local_gregs_v5(struct local_gregs *, bool is_signal);
-extern void save_gregs_dirty_bgr_v2(struct global_regs *);
+extern void save_gregs_dirty_bgr_v3(struct global_regs *);
 extern void save_gregs_dirty_bgr_v5(struct global_regs *);
-extern void save_gregs_on_mask_v2(struct global_regs *, bool dirty_bgr,
+extern void save_gregs_on_mask_v3(struct global_regs *, bool dirty_bgr,
 					unsigned long mask_not_save);
 extern void save_gregs_on_mask_v5(struct global_regs *, bool dirty_bgr,
 					unsigned long mask_not_save);
-extern void restore_gregs_v2(const struct global_regs *);
+extern void restore_gregs_v3(const struct global_regs *);
 extern void restore_gregs_v5(const struct global_regs *);
-extern void restore_local_gregs_v2(const struct local_gregs *, bool is_signal);
+extern void restore_local_gregs_v3(const struct local_gregs *, bool is_signal);
 extern void restore_local_gregs_v5(const struct local_gregs *, bool is_signal);
-extern void restore_gregs_on_mask_v2(struct global_regs *, bool dirty_bgr,
+extern void restore_gregs_on_mask_v3(struct global_regs *, bool dirty_bgr,
 					unsigned long mask_not_restore);
 extern void restore_gregs_on_mask_v5(struct global_regs *, bool dirty_bgr,
 					unsigned long mask_not_restore);
 extern void save_dimtp_v6(union e2k_dimtp *);
 extern void restore_dimtp_v6(const union e2k_dimtp *);
+extern void clear_dimtp_v6(void);
 extern void save_kvm_context_v6(struct kvm_vcpu_arch *);
 extern void restore_kvm_context_v6(const struct kvm_vcpu_arch *);
 extern void qpswitchd_sm(int);
 
-extern void calculate_aau_aaldis_aaldas_v2(const struct pt_regs *regs,
+extern void calculate_aau_aaldis_aaldas_v3(const struct pt_regs *regs,
 		e2k_aalda_t *aaldas, struct e2k_aau_context *context);
 extern void calculate_aau_aaldis_aaldas_v5(const struct pt_regs *regs,
 		e2k_aalda_t *aaldas, struct e2k_aau_context *context);
 extern void calculate_aau_aaldis_aaldas_v6(const struct pt_regs *regs,
 		e2k_aalda_t *aaldas, struct e2k_aau_context *context);
-extern void do_aau_fault_v2(int aa_field, struct pt_regs *regs);
+extern void do_aau_fault_v3(int aa_field, struct pt_regs *regs);
 extern void do_aau_fault_v5(int aa_field, struct pt_regs *regs);
 extern void do_aau_fault_v6(int aa_field, struct pt_regs *regs);
-extern void save_aaldi_v2(u64 *aaldis);
+extern void save_aaldi_v3(u64 *aaldis);
 extern void save_aaldi_v5(u64 *aaldis);
-extern void get_aau_context_v2(struct e2k_aau_context *, e2k_aasr_t);
+extern void get_aau_context_v3(struct e2k_aau_context *, e2k_aasr_t);
 extern void get_aau_context_v5(struct e2k_aau_context *, e2k_aasr_t);
-
-extern void flushts_v3(void);
 
 extern unsigned long boot_native_read_IDR_reg_value(void);
 
-unsigned long rrd_v2(int);
+unsigned long rrd_v3(int);
 unsigned long rrd_v3(int);
 unsigned long rrd_v6(int);
-void rwd_v2(int reg, unsigned long value);
 void rwd_v3(int reg, unsigned long value);
 void rwd_v6(int reg, unsigned long value);
-unsigned long boot_rrd_v2(int);
 unsigned long boot_rrd_v3(int);
 unsigned long boot_rrd_v6(int);
-void boot_rwd_v2(int reg, unsigned long value);
 void boot_rwd_v3(int reg, unsigned long value);
 void boot_rwd_v6(int reg, unsigned long value);
 
@@ -740,14 +640,12 @@ enum {
 	E2K_REG_OSCUIR,
 };
 
-u64 native_get_cu_hw1_v2(void);
+u64 native_get_cu_hw1_v3(void);
 u64 native_get_cu_hw1_v5(void);
-void native_set_cu_hw1_v2(u64);
+void native_set_cu_hw1_v3(u64);
 void native_set_cu_hw1_v5(u64);
 
-void invalidate_MLT_v2(void);
 void invalidate_MLT_v3(void);
-void get_and_invalidate_MLT_context_v2(struct e2k_mlt *mlt_state);
 void get_and_invalidate_MLT_context_v3(struct e2k_mlt *mlt_state);
 void get_and_invalidate_MLT_context_v6(struct e2k_mlt *mlt_state);
 
@@ -756,7 +654,7 @@ void native_clock_off_v3(void);
 void native_clock_on_v3(int cpu);
 #endif
 
-void C1_enter_v2(void);
+void C1_enter_v3(void);
 void C1_enter_v6(void);
 void C3_enter_v3(void);
 void C3_enter_v6(void);

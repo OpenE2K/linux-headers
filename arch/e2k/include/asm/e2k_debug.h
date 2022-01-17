@@ -85,6 +85,20 @@ typedef int (*parse_chain_fn_t)(e2k_mem_crs_t *crs,
 extern notrace long parse_chain_stack(int flags, struct task_struct *p,
 				parse_chain_fn_t func, void *arg);
 
+extern notrace int ____parse_chain_stack(int flags, struct task_struct *p,
+			parse_chain_fn_t func, void *arg, unsigned long delta_user,
+			unsigned long top, unsigned long bottom,
+			bool *interrupts_enabled, unsigned long *irq_flags);
+
+static inline int
+native_do_parse_chain_stack(int flags, struct task_struct *p,
+		parse_chain_fn_t func, void *arg, unsigned long delta_user,
+		unsigned long top, unsigned long bottom,
+		bool *interrupts_enabled, unsigned long *irq_flags)
+{
+	return ____parse_chain_stack(flags, p, func, arg, delta_user, top, bottom,
+					interrupts_enabled, irq_flags);
+}
 
 extern	void	*kernel_symtab;
 extern	long	kernel_symtab_size;
@@ -206,6 +220,23 @@ extern int print_window_regs;
 #ifdef CONFIG_DATA_STACK_WINDOW
 extern int debug_datastack;
 #endif
+
+#ifndef	CONFIG_KVM_GUEST_KERNEL
+/* it is native kernel without any virtualization */
+/* or it is native host kernel with virtualization support */
+/* or it is paravirtualized host and guest kernel */
+
+static inline int
+do_parse_chain_stack(int flags, struct task_struct *p,
+		parse_chain_fn_t func, void *arg, unsigned long delta_user,
+		unsigned long top, unsigned long bottom,
+		bool *interrupts_enabled, unsigned long *irq_flags)
+{
+	return native_do_parse_chain_stack(flags, p, func, arg, delta_user,
+						top, bottom,
+						interrupts_enabled, irq_flags);
+}
+#endif	/* !CONFIG_KVM_GUEST_KERNEL */
 
 #ifndef	CONFIG_VIRTUALIZATION
 /* it is native kernel without any virtualization */
@@ -444,12 +475,11 @@ static inline void print_tc_state(const trap_cellar_t *tcellar, int num)
 	       " chan  = 0x%x, se   = 0x%x, pm  = 0x%x\n\n" 
 	       " fault_type = 0x%x:\n"
 	       "  intl_res_bits	   = %d MLT_trap         = %d\n"
-	       "  ph_pr_page	   = %d page_bound       = %d\n"
+	       "  ph_pr_page	   = %d global_sp        = %d\n"
 	       "  io_page          = %d isys_page        = %d\n"
 	       "  prot_page        = %d priv_page        = %d\n"
 	       "  illegal_page     = %d nwrite_page      = %d\n"
 	       "  page_miss        = %d ph_bound         = %d\n"
-	       "  global_sp        = %d\n\n"
 	       " miss_lvl = 0x%x, num_align = 0x%x, empt    = 0x%x\n"
 	       " clw      = 0x%x, rcv       = 0x%x  dst_rcv = 0x%x\n"
 	       "----------------------------------------------------"
@@ -471,12 +501,11 @@ static inline void print_tc_state(const trap_cellar_t *tcellar, int num)
 	       (u32)AS(tcellar->condition).pm,
 	       (u32)AS(tcellar->condition).fault_type,
 	       (u32)AS(ftype).intl_res_bits,	(u32)(AS(ftype).exc_mem_lock),
-	       (u32)AS(ftype).ph_pr_page,	(u32)AS(ftype).page_bound,
+	       (u32)AS(ftype).ph_pr_page,	(u32)AS(ftype).global_sp,
 	       (u32)AS(ftype).io_page,		(u32)AS(ftype).isys_page,
 	       (u32)AS(ftype).prot_page,	(u32)AS(ftype).priv_page,
 	       (u32)AS(ftype).illegal_page,	(u32)AS(ftype).nwrite_page,
 	       (u32)AS(ftype).page_miss,	(u32)AS(ftype).ph_bound,
-	       (u32)AS(ftype).global_sp,
 	       (u32)AS(tcellar->condition).miss_lvl, 
 	       (u32)AS(tcellar->condition).num_align, 
 	       (u32)AS(tcellar->condition).empt, 

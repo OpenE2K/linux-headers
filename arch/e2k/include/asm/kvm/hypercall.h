@@ -250,6 +250,11 @@ static inline unsigned long generic_hypercall6(unsigned long nr,
 #define KVM_HCALL_RETURN_FROM_FAST_SYSCALL	33
 /* change return ip in user stack */
 #define KVM_HCALL_SET_RETURN_USER_IP		34
+/* fast guest kernel tagged memory copy */
+#define	KVM_HCALL_FAST_KERNEL_TAGGED_MEMORY_COPY 40
+/* fast guest kernel tagged memory set */
+#define	KVM_HCALL_FAST_KERNEL_TAGGED_MEMORY_SET  41
+
 
 typedef struct kvm_hw_stacks_flush {
 	unsigned long psp_lo;
@@ -488,6 +493,22 @@ HYPERVISOR_set_return_user_ip(u64 gti, u64 ip, int flags)
 	return light_hypercall3(KVM_HCALL_SET_RETURN_USER_IP, gti,
 				ip, flags);
 }
+static inline unsigned long
+HYPERVISOR_fast_kernel_tagged_memory_copy(void *dst, const void *src, size_t len,
+			unsigned long strd_opcode, unsigned long ldrd_opcode,
+			int prefetch)
+{
+	return light_hypercall6(KVM_HCALL_FAST_KERNEL_TAGGED_MEMORY_COPY,
+			(unsigned long)dst, (unsigned long)src,
+			len, strd_opcode, ldrd_opcode, prefetch);
+}
+static inline unsigned long
+HYPERVISOR_fast_kernel_tagged_memory_set(void *addr, u64 val, u64 tag, size_t len,
+					 u64 strd_opcode)
+{
+	return light_hypercall5(KVM_HCALL_FAST_KERNEL_TAGGED_MEMORY_SET,
+			(unsigned long)addr, val, tag, len, strd_opcode);
+}
 
 /*
  * KVM hypervisor (host) <-> guest generic hypercalls list
@@ -626,10 +647,7 @@ HYPERVISOR_set_return_user_ip(u64 gti, u64 ip, int flags)
 						/* value and tag to global */
 						/* register */
 #define	KVM_HCALL_MOVE_TAGGED_GUEST_DATA 114	/* move data value from to */
-#define	KVM_HCALL_FAST_TAGGED_GUEST_MEMORY_COPY 115
-						/* fast tagged memory copy */
-#define	KVM_HCALL_FAST_TAGGED_GUEST_MEMORY_SET  116
-						/* fast tagged memory set */
+#define	KVM_HCALL_COPY_IN_USER_WITH_TAGS 115	/* tagged guest memory copy */
 #define	KVM_HCALL_FAST_TAGGED_MEMORY_COPY 117	/* fast tagged memory copy */
 #define	KVM_HCALL_FAST_TAGGED_MEMORY_SET  118	/* fast tagged memory set */
 #define	KVM_HCALL_SHUTDOWN		120	/* shutdown of guest */
@@ -844,7 +862,7 @@ typedef struct vcpu_gmmu_info {
 	bool		sep_virt_space;	/* guest use separate PTs for */
 					/* OS and user virtual spaces */
 	bool		pt_v6;		/* guest PTs are of v6 format */
-	unsigned long	mmu_cr;		/* MMU control register */
+	e2k_mmu_cr_t	mmu_cr;		/* MMU control register */
 	unsigned long	pid;		/* MMU PID (context) register */
 	unsigned long	trap_cellar;	/* MMU trap cellar base */
 	unsigned long	u_pptb;		/* physical base of user (for */
@@ -1212,20 +1230,11 @@ HYPERVISOR_move_tagged_guest_data(int word_size,
 				word_size, addr_from, addr_to);
 }
 static inline unsigned long
-HYPERVISOR_fast_tagged_guest_memory_copy(void *dst, const void *src, size_t len,
-		unsigned long strd_opcode, unsigned long ldrd_opcode,
-		int prefetch)
+HYPERVISOR_copy_in_user_with_tags(void __user *dst, const void __user *src,
+					unsigned long size)
 {
-	return generic_hypercall6(KVM_HCALL_FAST_TAGGED_GUEST_MEMORY_COPY,
-			(unsigned long)dst, (unsigned long)src,
-			len, strd_opcode, ldrd_opcode, prefetch);
-}
-static inline unsigned long
-HYPERVISOR_fast_tagged_guest_memory_set(void *addr, u64 val, u64 tag,
-		size_t len, u64 strd_opcode)
-{
-	return generic_hypercall5(KVM_HCALL_FAST_TAGGED_GUEST_MEMORY_SET,
-			(unsigned long)addr, val, tag, len, strd_opcode);
+	return generic_hypercall3(KVM_HCALL_COPY_IN_USER_WITH_TAGS,
+			(unsigned long)dst, (unsigned long)src, size);
 }
 
 static inline unsigned long

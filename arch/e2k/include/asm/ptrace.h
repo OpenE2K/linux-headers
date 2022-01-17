@@ -199,6 +199,8 @@ typedef	struct pt_regs {
 	bool		in_hypercall;	/* trap is occured in hypercall */
 	bool		is_guest_user;	/* trap/system call on/from guest */
 					/* user */
+	bool		in_fast_syscall;/* guest issues fast system call and */
+					/* it is in progress */
 	unsigned long	traps_to_guest;	/* mask of traps passed to guest */
 					/* and are not yet handled by guest */
 					/* need only for host */

@@ -1379,7 +1379,7 @@ typedef	union e2k_dst {
 
 #define AS_WORD(x)		((x).word)
 #define AS_STRUCT(x)		((x).fields)
-#define AS_V2_STRUCT(x)		((x).v2_fields)
+#define AS_V3_STRUCT(x)		((x).v3_fields)
 #define AS_V6_STRUCT(x)		((x).v6_fields)
 #define AS_SAP_STRUCT(x)	((x).sap_fields)
 #define AS_AP_STRUCT(x)		((x).ap_fields)
@@ -1920,13 +1920,13 @@ typedef	union e2k_tsd {
 #define	CUD_CFLAG_SET		1	/* ISV have passed		     */
 
 /* Hardware procedure stack memory mapping (one quad-register record, LE) */
-/* Istruction sets from V2 to V4 */
-typedef	struct e2k_mem_ps_v2 {
+/* Istruction sets from V3 to V4 */
+typedef	struct e2k_mem_ps_v3 {
 	unsigned long		word_lo;	/* low word value */
 	unsigned long		word_hi;	/* high word value */
 	unsigned long		ext_lo;		/* extention of low word */
 	unsigned long		ext_hi;		/* extention of hagh word */
-} e2k_mem_ps_v2_t;
+} e2k_mem_ps_v3_t;
 /* Istruction sets from V5 to V6 */
 typedef	struct e2k_mem_ps_v5 {
 	unsigned long		word_lo;	/* low word value */
@@ -1935,7 +1935,7 @@ typedef	struct e2k_mem_ps_v5 {
 	unsigned long		ext_hi;		/* extention of hagh word */
 } e2k_mem_ps_v5_t;
 typedef union e2k_mem_ps {
-	e2k_mem_ps_v2_t		v2;
+	e2k_mem_ps_v3_t		v3;
 	e2k_mem_ps_v5_t		v5;
 } e2k_mem_ps_t;
 
@@ -2079,7 +2079,7 @@ typedef	struct e2k_upsr_fields {
 	u32	a20	: 1;	/* emulation of 1 Mb memory (only for Intel) */
 				/* should be 0 for Elbrus */
 	u32	nmie	: 1;	/* not masked interrupt enable */
-	/* next field of register exist only on ES2/E2S/E8C/E1C+ CPUs */
+	/* next field of register exist only on E2S/E8C/E1C+ CPUs */
 	u32	fsm	: 1;	/* floating comparison mode flag */
 				/* 1 - compatible with x86/x87 */
 	u32	impt	: 1;	/* ignore Memory Protection Table flag */
@@ -2113,7 +2113,7 @@ typedef	union e2k_upsr {
 #define	UPSR_IE		0x20U
 #define	UPSR_A20	0x40U
 #define	UPSR_NMIE	0x80U
-/* next field of register exist only on ES2/E2S/E8C/E1C+ CPUs */
+/* next field of register exist only on E2S/E8C/E1C+ CPUs */
 #define	UPSR_FSM	0x100U
 #define	UPSR_IMPT	0x200U
 #define	UPSR_IUC	0x400U
@@ -2169,10 +2169,7 @@ typedef	union e2k_idr {
 /* CPU model numbers */
 #define IDR_NONE		0x00	/* No such hardware exists */
 #define	IDR_E2S_MDL		0x03	/* Elbrus-4C (Elbrus-2S) */
-#define	IDR_ES2_DSP_MDL		0x04	/* Elbrus-2C+ */
 #define	IDR_E4S_MDL		0x05	/* reserve */
-#define	IDR_ES2_RU_MDL		0x06	/* Elbrus-2CM (without DSP) */
-					/* russian MICRON release */
 #define IDR_E8C_MDL		0x07	/* Elbrus-8C */
 #define IDR_E1CP_MDL		0x08	/* Elbrus-1C+ one processor e2s */
 					/* + graphic */

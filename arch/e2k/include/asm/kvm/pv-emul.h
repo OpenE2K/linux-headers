@@ -10,6 +10,8 @@
 
 #include <asm/ptrace.h>
 
+enum restore_caller;
+
 #ifdef	CONFIG_VIRTUALIZATION
 static __always_inline void
 kvm_set_intc_emul_flag(pt_regs_t *regs)
@@ -126,7 +128,8 @@ extern void insert_pv_vcpu_sigreturn(struct kvm_vcpu *vcpu,
 
 extern void kvm_emulate_pv_vcpu_intc(struct thread_info *ti, pt_regs_t *regs,
 					trap_pt_regs_t *trap);
-extern void return_from_pv_vcpu_intc(struct thread_info *ti, pt_regs_t *regs);
+extern void return_from_pv_vcpu_intc(struct thread_info *ti, pt_regs_t *regs,
+					enum restore_caller from);
 
 static inline bool kvm_vcpu_in_hypercall(struct kvm_vcpu *vcpu)
 {
@@ -255,6 +258,14 @@ pv_vcpu_set_active_gmm(struct kvm_vcpu *vcpu, gmm_struct_t *gmm)
 	} else {
 		KVM_BUG_ON(true);
 	}
+}
+static inline hpa_t
+kvm_mmu_get_init_gmm_root_hpa(struct kvm *kvm)
+{
+	gmm_struct_t *init_gmm = pv_mmu_get_init_gmm(kvm);
+
+	GTI_BUG_ON(init_gmm == NULL);
+	return init_gmm->root_hpa;
 }
 
 static inline mm_context_t *pv_vcpu_get_gmm_context(struct kvm_vcpu *vcpu)

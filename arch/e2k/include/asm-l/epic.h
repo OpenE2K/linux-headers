@@ -95,7 +95,6 @@ extern __visible void epic_smp_timer_interrupt(struct pt_regs *regs);
 extern __visible void epic_smp_spurious_interrupt(struct pt_regs *regs);
 extern __visible void epic_smp_error_interrupt(struct pt_regs *regs);
 extern __visible void prepic_smp_error_interrupt(struct pt_regs *regs);
-extern __visible void epic_smp_irq_move_cleanup_interrupt(struct pt_regs *regs);
 extern __visible void epic_smp_irq_work_interrupt(struct pt_regs *regs);
 extern __visible void cepic_epic_interrupt(struct pt_regs *regs);
 extern __visible void epic_hc_emerg_interrupt(struct pt_regs *regs);
@@ -108,6 +107,7 @@ extern __visible void epic_pcs_interrupt(struct pt_regs *regs);
 extern __visible void epic_pv_apf_wake(struct pt_regs *regs);
 #endif /* CONFIG_KVM_ASYNC_PF */
 #ifdef CONFIG_SMP
+extern __visible void epic_smp_irq_move_cleanup_interrupt(struct pt_regs *regs);
 extern __visible void epic_smp_reschedule_interrupt(struct pt_regs *regs);
 extern __visible void epic_smp_call_function_interrupt(struct pt_regs *regs);
 extern __visible void epic_smp_call_function_single_interrupt(

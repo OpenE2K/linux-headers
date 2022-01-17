@@ -101,7 +101,8 @@ static inline void __guest_exit(struct thread_info *ti,
 	kvm_guest_exit(ti, vcpu, flags);
 }
 static inline void
-trap_guest_enter(struct thread_info *ti, struct pt_regs *regs, unsigned flags)
+trap_guest_enter(struct thread_info *ti, struct pt_regs *regs, unsigned flags,
+			restore_caller_t from)
 {
 	kvm_trap_guest_enter(ti, regs, flags);
 }
@@ -159,7 +160,7 @@ static inline void pv_vcpu_syscall_intc(thread_info_t *ti, pt_regs_t *regs)
 }
 
 static inline void guest_exit_intc(struct pt_regs *regs,
-		bool intc_emul_flag) { }
+		bool intc_emul_flag, restore_caller_t from) { }
 static inline void guest_syscall_exit_trap(struct pt_regs *regs,
 		bool ts_host_at_vcpu_mode) { }
 

@@ -18,10 +18,9 @@ extern int __init native_arch_pci_init(void);
 #define	E2K_X86_IO_AREA_BASE	E2K_KERNEL_IO_BIOS_AREAS_BASE
 
 /* Size of pages for the IO area */
-#define	E2K_X86_IO_PAGE_SIZE (cpu_has(CPU_HWBUG_LARGE_PAGES) ? \
-				E2K_SMALL_PAGE_SIZE : E2K_LARGE_PAGE_SIZE)
-#define X86_IO_AREA_PHYS_BASE		(machine.x86_io_area_base)
-#define X86_IO_AREA_PHYS_SIZE		(machine.x86_io_area_size)
+#define	E2K_X86_IO_PAGE_SIZE 	E2K_LARGE_PAGE_SIZE
+#define X86_IO_AREA_PHYS_BASE	(machine.x86_io_area_base)
+#define X86_IO_AREA_PHYS_SIZE	(machine.x86_io_area_size)
 
 
 /*
@@ -39,32 +38,24 @@ extern int __init native_arch_pci_init(void);
 static inline u8 native_readb_relaxed(const volatile void __iomem *addr)
 {
 	u8 res = *(const volatile u8 __force *) addr;
-	if (cpu_has(CPU_HWBUG_PIO_READS))
-		__E2K_WAIT(_ld_c);
 	return res;
 }
 
 static inline u16 native_readw_relaxed(const volatile void __iomem *addr)
 {
 	u16 res = *(const volatile u16 __force *) addr;
-	if (cpu_has(CPU_HWBUG_PIO_READS))
-		__E2K_WAIT(_ld_c);
 	return res;
 }
 
 static inline u32 native_readl_relaxed(const volatile void __iomem *addr)
 {
 	u32 res = *(const volatile u32 __force *) addr;
-	if (cpu_has(CPU_HWBUG_PIO_READS))
-		__E2K_WAIT(_ld_c);
 	return res;
 }
 
 static inline u64 native_readq_relaxed(const volatile void __iomem *addr)
 {
 	u64 res = *(const volatile u64 __force *) addr;
-	if (cpu_has(CPU_HWBUG_PIO_READS))
-		__E2K_WAIT(_ld_c);
 	return res;
 }
 
@@ -198,11 +189,7 @@ static inline void native_writeq(u64 value, volatile void __iomem *addr)
  * x86 works and how most of the drivers are tested. */
 # define __io_paw() __E2K_WAIT(_st_c | _sas)
 #else
-# define __io_par() \
-do { \
-	if (cpu_has(CPU_HWBUG_PIO_READS)) \
-		__E2K_WAIT(_ld_c); \
-} while (0)
+# define __io_par()
 # define __io_pbw()
 # define __io_paw()
 #endif

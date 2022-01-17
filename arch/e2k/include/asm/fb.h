@@ -9,8 +9,7 @@
 static inline void fb_pgprotect(struct file *file, struct vm_area_struct *vma,
 				unsigned long off)
 {
-	vma->vm_page_prot = (cpu_has(CPU_FEAT_WC_PCI_PREFETCH) &&
-			     vma->vm_flags & VM_WRITECOMBINED) ?
+	vma->vm_page_prot = (vma->vm_flags & VM_WRITECOMBINED) ?
 				pgprot_writecombine(vma->vm_page_prot) :
 				pgprot_noncached(vma->vm_page_prot);
 }

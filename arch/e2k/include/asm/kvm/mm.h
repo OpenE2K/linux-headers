@@ -36,10 +36,13 @@ typedef struct gmm_struct {
 	size_t total_released;		/* total number of allocated and */
 					/* released SPs through list */
 #endif	/* CONFIG_GUEST_MM_SPT_LIST */
-#ifdef	CONFIG_KVM_HV_MMU
 	hpa_t root_hpa;			/* physical base of root shadow PT */
 					/* for guest mm on host */
+					/* to access only to user space */
+	hpa_t gk_root_hpa;		/* root shadow PT for guest kernel */
+					/* to access to user & kernel spaces */
 	gfn_t root_gpa;			/* 'physical' base of guest root PT */
+#ifdef	CONFIG_KVM_HV_MMU
 	gpa_t os_pptb;			/* guest kernel root PT physical base */
 	gpa_t u_pptb;			/* guest user root PT physical base */
 	gva_t os_vptb;			/* guest kernel root PT virtual base */

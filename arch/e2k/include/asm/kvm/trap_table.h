@@ -296,6 +296,7 @@ kvm_init_guest_traps_handling(struct pt_regs *regs, bool user_mode_trap)
 	regs->traps_to_guest = 0;	/* only for host */
 	regs->is_guest_user = false;	/* only for host */
 	regs->g_stacks_valid = false;	/* only for host */
+	regs->in_fast_syscall = false;	/* only for host */
 	if (user_mode_trap && test_thread_flag(TIF_LIGHT_HYPERCALL) &&
 			(NATIVE_NV_READ_CR1_LO_REG().CR1_lo_pm)) {
 		regs->flags.light_hypercall = 1;
@@ -308,6 +309,7 @@ kvm_init_guest_syscalls_handling(struct pt_regs *regs)
 	regs->traps_to_guest = 0;	/* only for host */
 	regs->is_guest_user = true;	/* only for host */
 	regs->g_stacks_valid = false;	/* only for host */
+	regs->in_fast_syscall = false;	/* only for host */
 }
 
 static inline void

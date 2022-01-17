@@ -11,7 +11,7 @@
 #include <asm/trap_table.h>
 #include <asm/gregs.h>
 #include <asm/hw_stacks.h>
-#include <uapi/asm/ucontext.h>
+#include <asm/ucontext.h>
 
 struct fast_syscalls_data {
 	struct timekeeper *tk;
@@ -31,6 +31,17 @@ extern const fast_system_call_func fast_sys_calls_table[NR_fast_syscalls];
 extern const fast_system_call_func fast_sys_calls_table_32[NR_fast_syscalls];
 
 int fast_sys_ni_syscall(void);
+
+/* trap table entry started by direct branch (it is closer to fast system */
+/* call wirthout switch and use user local data stack) */
+
+#define	ttable_entry1_clock_gettime(which, time, ret)		\
+		goto_ttable_entry1_args3(__NR_clock_gettime, which, time, ret)
+#define	ttable_entry1_gettimeofday(tv, tz, ret)		\
+		goto_ttable_entry1_args3(__NR_gettimeofday, tv, tz, ret)
+#define	ttable_entry1_sigprocmask(how, nset, oset, ret)		\
+		goto_ttable_entry1_args4(__NR_sigprocmask, how, \
+					nset, oset, ret)
 
 #define FAST_SYSTEM_CALL_TBL_ENTRY(sysname)	\
 		(fast_system_call_func) sysname
@@ -204,11 +215,6 @@ enum {
 			__cycles = fast_syscall_read_sclkr();		\
 			if (__cycles)					\
 				__ret = FAST_SYS_OK;			\
-		} else if (likely(__clock == &clocksource_clkr)) {	\
-			__cycle_last = __tk->tkr_mono.cycle_last;	\
-			__mask = __clock->mask;				\
-			__cycles = fast_syscall_read_clkr();		\
-			__ret = FAST_SYS_OK;				\
 		}							\
 	} while (unlikely(read_seqcount_retry(&timekeeper_seq, __seq))); \
 									\
@@ -478,10 +484,152 @@ static inline int _fast_sys_getcontext(struct ucontext __user *ucp,
 	return 0;
 }
 
-notrace __interrupt __section(.entry_handlers)
+notrace __section(.entry_handlers)
 static inline int fast_sys_set_return(u64 ip, int flags)
 {
 	return do_fast_sys_set_return(ip, flags);
+}
+
+
+/* Inlined handlers for compat fast syscalls */
+
+notrace __section(".entry.text")
+static inline int _compat_fast_sys_clock_gettime(const clockid_t which_clock,
+		struct compat_timespec __user *__restrict tp)
+{
+	struct thread_info *const ti = READ_CURRENT_REG();
+	struct timespec kts;
+	int ret;
+
+	prefetch_nospec(&fsys_data);
+
+	if (unlikely((u64) tp + sizeof(struct compat_timespec) >
+			ti->addr_limit.seg))
+		return -EFAULT;
+
+	ret = do_fast_clock_gettime(which_clock, &kts);
+	if (likely(!ret)) {
+		tp->tv_sec = kts.tv_sec;
+		tp->tv_nsec = kts.tv_nsec;
+	} else {
+		ttable_entry1_clock_gettime((u64) which_clock, (u64) tp, ret);
+	}
+
+	return ret;
+}
+
+notrace __section(".entry.text")
+static inline int _compat_fast_sys_gettimeofday(
+			struct compat_timeval __user *__restrict tv,
+			struct timezone __user *__restrict tz)
+{
+	struct thread_info *const ti = READ_CURRENT_REG();
+	struct timeval ktv;
+	int ret;
+
+	prefetch_nospec(&fsys_data);
+
+	if (unlikely((u64) tv + sizeof(struct compat_timeval) >
+					ti->addr_limit.seg
+			|| (u64) tz + sizeof(struct timezone) >
+					ti->addr_limit.seg))
+		return -EFAULT;
+
+	if (likely(tv)) {
+		ret = do_fast_gettimeofday(&ktv);
+		if (unlikely(ret))
+			ttable_entry1_gettimeofday((u64) tv, (u64) tz, ret);
+	} else {
+		ret = 0;
+	}
+
+	if (tv) {
+		tv->tv_sec = ktv.tv_sec;
+		tv->tv_usec = ktv.tv_usec;
+	}
+	if (tz) {
+		tz->tz_minuteswest = sys_tz.tz_minuteswest;
+		tz->tz_dsttime = sys_tz.tz_dsttime;
+	}
+
+	return ret;
+}
+
+#if _NSIG != 64
+# error We read u64 value here...
+#endif
+notrace __section(".entry.text")
+static inline int _compat_fast_sys_siggetmask(u32 __user *oset,
+					size_t sigsetsize)
+{
+	struct thread_info *const ti = READ_CURRENT_REG();
+	struct task_struct *task = thread_info_task(ti);
+	int ret = 0;
+	union {
+		u32 word[2];
+		u64 whole;
+	} set;
+
+	set.whole = task->blocked.sig[0];
+
+	if (unlikely(sigsetsize != 8))
+		return -EINVAL;
+
+	if (unlikely((u64) oset + sizeof(sigset_t) > ti->addr_limit.seg))
+		return -EFAULT;
+
+	oset[0] = set.word[0];
+	oset[1] = set.word[1];
+
+	return ret;
+}
+
+#if _NSIG != 64
+# error We read u64 value here...
+#endif
+notrace __section(".entry.text")
+static inline int _compat_fast_sys_getcontext(struct ucontext_32 __user *ucp,
+						size_t sigsetsize)
+{
+	struct thread_info *const ti = READ_CURRENT_REG();
+	struct task_struct *task = thread_info_task(ti);
+
+	register u64 pcsp_lo, pcsp_hi;
+	register u32 fpcr, fpsr, pfpfr;
+	union {
+		u32 word[2];
+		u64 whole;
+	} set;
+	u64 key;
+
+	BUILD_BUG_ON(sizeof(task->blocked.sig[0]) != 8);
+	set.whole = task->blocked.sig[0];
+
+	if (unlikely(sigsetsize != 8))
+		return -EINVAL;
+
+	if (unlikely((u64) ucp + sizeof(struct ucontext_32) >
+					ti->addr_limit.seg
+			|| (u64) ucp >= ti->addr_limit.seg))
+		return -EFAULT;
+
+	key = context_ti_key_fast_syscall(ti);
+
+	E2K_GETCONTEXT(fpcr, fpsr, pfpfr, pcsp_lo, pcsp_hi);
+
+	/* We want stack to point to user frame that called us */
+	pcsp_hi -= SZ_OF_CR;
+
+	((u32 *) &ucp->uc_sigmask)[0] = set.word[0];
+	((u32 *) &ucp->uc_sigmask)[1] = set.word[1];
+	ucp->uc_mcontext.sbr = key;
+	ucp->uc_mcontext.pcsp_lo = pcsp_lo;
+	ucp->uc_mcontext.pcsp_hi = pcsp_hi;
+	ucp->uc_extra.fpcr = fpcr;
+	ucp->uc_extra.fpsr = fpsr;
+	ucp->uc_extra.pfpfr = pfpfr;
+
+	return 0;
 }
 
 #endif /* _ASM_E2K_FAST_SYSCALLS_H */

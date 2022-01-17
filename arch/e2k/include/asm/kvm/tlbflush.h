@@ -43,6 +43,8 @@ extern void host_flush_shadow_pt_level_tlb(struct kvm *kvm, gmm_struct_t *gmm,
  * and it is then that the PID will become active, but now it is still passive.
  */
 
+extern void host_local_flush_tlb_range_and_pgtables(gmm_struct_t *gmm,
+					unsigned long start, unsigned long end);
 extern void host_flush_tlb_mm(gmm_struct_t *gmm);
 extern void host_flush_tlb_page(gmm_struct_t *gmm, unsigned long addr);
 extern void host_flush_tlb_range(gmm_struct_t *gmm,

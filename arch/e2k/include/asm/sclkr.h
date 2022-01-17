@@ -99,7 +99,7 @@ static __always_inline u64 sclkr_to_ns(u64 sclkr, u64 freq)
 
 static inline bool use_sclkr_sched_clock(void)
 {
-	return machine.native_iset_ver >= E2K_ISET_V3 && sclkr_initialized;
+	return sclkr_initialized;
 }
 
 #endif	/* _ASM_E2K_SCLKR_H */

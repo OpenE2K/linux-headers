@@ -50,17 +50,14 @@ native_copy_from_user_with_tags(void *to, const void __user *from,
 #ifdef	CONFIG_KVM_HOST_MODE
 /* it is host kernel with virtualization support */
 
-#define	host_get_user(kval, uptr, hregs)				\
+#define	host_get_guest_kernel(kval, gk_ptr)				\
 ({									\
-	__typeof__(*(uptr)) __user *___pu_ptr = (uptr);			\
-	int sz_uptr = sizeof(*(uptr));					\
+	__typeof__(*(gk_ptr)) __user *___pu_ptr;			\
+	int sz_uptr = sizeof(*(gk_ptr));				\
 	long res;							\
 									\
-	___pu_ptr = (!host_test_intc_emul_mode(hregs)) ?		\
-			(uptr)						\
-			:						\
-			kvm_guest_ptr_to_host_ptr((uptr), sz_uptr,	\
-							true);		\
+	___pu_ptr = kvm_guest_ptr_to_host_ptr((gk_ptr), false,		\
+						sz_uptr, true);		\
 	if (PTR_ERR(___pu_ptr) == -EAGAIN)				\
 		res = -EAGAIN;						\
 	else								\
@@ -69,23 +66,102 @@ native_copy_from_user_with_tags(void *to, const void __user *from,
 	(res);								\
 })
 
-#define	host_put_user(kval, uptr, hregs)				\
+#define	host_put_guest_kernel(kval, gk_ptr)				\
 ({									\
-	__typeof__(*(uptr)) __user *___pu_ptr = (uptr);			\
-	int sz_uptr = sizeof(*(uptr));					\
+	__typeof__(*(gk_ptr)) __user *___pu_ptr;			\
+	int sz_uptr = sizeof(*(gk_ptr));				\
 	long res;							\
 									\
-	___pu_ptr = (!host_test_intc_emul_mode(hregs)) ?		\
-			(uptr)						\
-			:						\
-			kvm_guest_ptr_to_host_ptr((uptr), sz_uptr,	\
-							true);		\
+	___pu_ptr = kvm_guest_ptr_to_host_ptr((gk_ptr), true,		\
+						sz_uptr, true);		\
 	if (PTR_ERR(___pu_ptr) == -EAGAIN)				\
 		res = -EAGAIN;						\
 	else								\
 		res = (___pu_ptr) ? native_put_user(kval, ___pu_ptr) :	\
 					-EFAULT;			\
 	(res);								\
+})
+
+#define	host_get_user(kval, uptr, hregs)				\
+({									\
+	__typeof__(*(uptr)) __user *__pu_ptr = (uptr);			\
+	long res;							\
+									\
+	res = (!host_test_intc_emul_mode(hregs)) ?			\
+			((__pu_ptr) ?					\
+				native_get_user(kval, __pu_ptr)	\
+				:					\
+				-EFAULT)				\
+			:						\
+			host_get_guest_kernel(kval, __pu_ptr);		\
+	(res);								\
+})
+
+#define	host_put_user(kval, uptr, hregs)				\
+({									\
+	__typeof__(*(uptr)) __user *__pu_ptr = (uptr);			\
+	int sz_uptr = sizeof(*(uptr));					\
+	long res;							\
+									\
+	res = (!host_test_intc_emul_mode(hregs)) ?			\
+			(__pu_ptr) ?					\
+				native_put_user(kval, __pu_ptr)	\
+				:					\
+				-EFAULT)				\
+			:						\
+			host_put_guest_kernel(kval, __pu_ptr);		\
+	(res);								\
+})
+
+#define	__kvm_get_guest_atomic(__slot, gfn, __hk_ptr, offset,		\
+					gk_ptrp, __writable)		\
+({									\
+	__typeof__(__hk_ptr) __user *gk_ptr;				\
+	unsigned long addr;						\
+	int r;								\
+									\
+	addr = gfn_to_hva_memslot_prot(__slot, gfn, __writable);	\
+	if (unlikely(kvm_is_error_hva(addr))) {				\
+		r = -EFAULT;						\
+	} else {							\
+		gk_ptr = (__typeof__((__hk_ptr)) *)(addr + offset);	\
+		gk_ptrp = gk_ptr;					\
+		r = native_get_user((__hk_ptr), gk_ptr);		\
+	}								\
+	r;								\
+})
+
+#define	kvm_get_guest_atomic(kvm, gpa, _hk_ptr)				\
+({									\
+	gfn_t gfn = (gpa) >> PAGE_SHIFT;				\
+	struct kvm_memory_slot *slot = gfn_to_memslot(kvm, gfn);	\
+	int offset = offset_in_page(gpa);				\
+	__typeof__(_hk_ptr) __user *unused;				\
+	int r;								\
+									\
+	__kvm_get_guest_atomic(slot, gfn, (_hk_ptr), offset,		\
+				unused, NULL);				\
+})
+
+#define	kvm_vcpu_get_guest_ptr_atomic(vcpu, gpa, _hk_ptr,		\
+					_gk_ptrp, _writable)		\
+({									\
+	gfn_t gfn = (gpa) >> PAGE_SHIFT;				\
+	struct kvm_memory_slot *slot;					\
+	int offset = offset_in_page(gpa);				\
+	int r;								\
+									\
+	slot = kvm_vcpu_gfn_to_memslot(vcpu, gfn);			\
+	r = __kvm_get_guest_atomic(slot, gfn, (_hk_ptr), offset,	\
+					_gk_ptrp, _writable);		\
+	r;								\
+})
+#define	kvm_vcpu_get_guest_atomic(vcpu, gpa, ___hk_ptr)			\
+({									\
+	__typeof__(___hk_ptr) __user *unused;				\
+									\
+	kvm_vcpu_get_guest_ptr_atomic(vcpu, gpa, ___hk_ptr,		\
+					unused, NULL);			\
 })
 
 extern unsigned long kvm_copy_in_user_with_tags(void __user *to,

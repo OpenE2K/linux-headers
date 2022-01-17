@@ -49,7 +49,7 @@
 #endif	/* CONFIG_CPU_ISET 0-6 */
 
 /* max. number of physical address bits (architected) */
-#define E2K_MAX_PHYS_BITS_V2	40	/* on V1-V5 */
+#define E2K_MAX_PHYS_BITS_V3	40	/* on V1-V5 */
 #define E2K_MAX_PHYS_BITS_V6	48	/* from V6-... */
 
 /*
@@ -97,7 +97,6 @@ typedef enum uni_page_bits {
 	UNI_PAGE_PRIV_BIT,		/* PriVileged */
 	UNI_PAGE_VALID_BIT,		/* Valid */
 	UNI_PAGE_PROTECT_BIT,		/* PRotected */
-	UNI_PAGE_HW_ACCESS_BIT,		/* page hardware Accessed */
 	UNI_PAGE_DIRTY_BIT,		/* page Dirty */
 	UNI_PAGE_HUGE_BIT,		/* huge Page Size */
 	UNI_PAGE_GLOBAL_BIT,		/* Global page */
@@ -105,7 +104,6 @@ typedef enum uni_page_bits {
 	UNI_PAGE_NON_EX_BIT,		/* NON EXecutable */
 	UNI_PAGE_PROTNONE_BIT,		/* software PROTection NONE */
 	UNI_PAGE_AVAIL_BIT,		/* software AVAILable */
-	UNI_PAGE_SW_ACCESS_BIT,		/* page software Accessed */
 	UNI_PAGE_SPECIAL_BIT,		/* software SPECIAL */
 	UNI_PAGE_GFN_BIT,		/* software Guest page Frame Number */
 	UNI_PAGE_ACCESSED_BIT,		/* page hardware/software Accessed */
@@ -141,7 +139,6 @@ typedef const unsigned long	uni_dtlb_t;
 #define	UNI_PAGE_PRIV		(uni_pteval_t)(1ULL << UNI_PAGE_PRIV_BIT)
 #define	UNI_PAGE_VALID		(uni_pteval_t)(1ULL << UNI_PAGE_VALID_BIT)
 #define	UNI_PAGE_PROTECT	(uni_pteval_t)(1ULL << UNI_PAGE_PROTECT_BIT)
-#define	UNI_PAGE_HW_ACCESS	(uni_pteval_t)(1ULL << UNI_PAGE_HW_ACCESS_BIT)
 #define	UNI_PAGE_DIRTY		(uni_pteval_t)(1ULL << UNI_PAGE_DIRTY_BIT)
 #define	UNI_PAGE_HUGE		(uni_pteval_t)(1ULL << UNI_PAGE_HUGE_BIT)
 #define	UNI_PAGE_GLOBAL		(uni_pteval_t)(1ULL << UNI_PAGE_GLOBAL_BIT)
@@ -149,7 +146,6 @@ typedef const unsigned long	uni_dtlb_t;
 #define	UNI_PAGE_NON_EX		(uni_pteval_t)(1ULL << UNI_PAGE_NON_EX_BIT)
 #define	UNI_PAGE_PROTNONE	(uni_pteval_t)(1ULL << UNI_PAGE_PROTNONE_BIT)
 #define	UNI_PAGE_AVAIL		(uni_pteval_t)(1ULL << UNI_PAGE_AVAIL_BIT)
-#define	UNI_PAGE_SW_ACCESS	(uni_pteval_t)(1ULL << UNI_PAGE_SW_ACCESS_BIT)
 #define	UNI_PAGE_SPECIAL	(uni_pteval_t)(1ULL << UNI_PAGE_SPECIAL_BIT)
 #define	UNI_PAGE_GFN		(uni_pteval_t)(1ULL << UNI_PAGE_GFN_BIT)
 #define	UNI_PAGE_ACCESSED	(uni_pteval_t)(1ULL << UNI_PAGE_ACCESSED_BIT)

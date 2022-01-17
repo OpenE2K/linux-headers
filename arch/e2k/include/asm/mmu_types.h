@@ -142,12 +142,6 @@ typedef struct { pgprotval_t pgprot; } pgprot_t;
 /* max level # on which can map huge pages: pmd, pud */
 #define	MAX_HUGE_PAGES_LEVEL	E2K_PUD_LEVEL_NUM
 
-#define	MAX_NUM_HUGE_PTES	2	/* max number of page table entries */
-					/* to present one huge page on any */
-					/* PT level */
-					/* Now e2c+ MMU need 2 pmd entries */
-					/* to present 4 Mb page */
-
 typedef enum dtlb_type {
 	UNUSED_DTLB_TYPE,		/* DTLB unused for page table entries */
 	COMMON_DTLB_TYPE,		/* common DTLB N-lines x M-sets */
@@ -191,21 +185,11 @@ typedef struct pt_level {
 	bool		is_pte;		/* page table entries level */
 	bool		is_huge;	/* the level can be as huge page */
 					/* table entries */
-	unsigned char	huge_ptes;	/* number of the level page table */
-					/* entries to present one huge page */
 	dtlb_type_t	dtlb_type;	/* DTLB cache type for page tables */
 					/* entries on the level */
 
 	/* interface function to handle some things on the level */
-	pte_t * (*boot_get_huge_pte)(e2k_addr_t virt_addr, pgprot_t *ptp);
-	pte_t * (*init_get_huge_pte)(e2k_addr_t virt_addr, pgprot_t *ptp);
 	pte_t * (*get_huge_pte)(e2k_addr_t virt_addr, pgprot_t *ptp);
-	void (*boot_set_pte)(e2k_addr_t addr, pte_t *ptep, pte_t pte,
-				bool host_map);
-	void (*init_pte_clear)(pte_t *ptep);
-	void (*split_pt_page)(pgprot_t *ptp, pte_t *ptes[MAX_NUM_HUGE_PTES]);
-	void (*map_pt_huge_page_to_prev_level)(pgprot_t *pt_page,
-				e2k_addr_t phys_page, pgprot_t pgprot);
 
 } pt_level_t;
 
@@ -335,12 +319,6 @@ get_ptrs_per_pt_level(const pt_level_t *pt_level)
 	return pt_level->ptrs_per_pt;
 }
 
-static inline int
-get_pt_level_huge_ptes_num(const pt_level_t *pt_level)
-{
-	return pt_level->huge_ptes;
-}
-
 static inline const pt_level_t *
 get_pt_struct_level_on_id(const pt_struct_t *pt_struct, int level_id)
 {
@@ -372,12 +350,6 @@ get_pt_struct_level_page_size(const pt_struct_t *pt_struct, int level_id)
 	return get_pt_level_page_size(&pt_struct->levels[level_id]);
 }
 
-static inline int
-get_pt_struct_level_huge_ptes_num(const pt_struct_t *pt_struct, int level_id)
-{
-	return get_pt_level_huge_ptes_num(&pt_struct->levels[level_id]);
-}
-
 /* This is definition of MMU TRAP_CELLAR types */
 
 struct mmu_tc_dst {
@@ -403,6 +375,7 @@ struct mmu_tc_opcode {
 
 #endif	/* ! __ASSEMBLY__ */
 
+#define	LDST_INVALID_FMT	0UL	/* invalid format value */
 #define	LDST_BYTE_FMT		1UL	/* load/store byte (8 bits) */
 #define	LDST_HALF_FMT		2UL	/* load/store halfword (16 bits) */
 #define	LDST_WORD_FMT		3UL	/* load/store word (32 bits) */
@@ -435,8 +408,7 @@ typedef union {
 
 struct mmu_tc_fault_type {
 	unsigned global_sp		:1;	/* [35] */
-	unsigned page_bound		:1;	/* [36] */
-	unsigned exc_mem_lock		:1;	/* [37] */
+	unsigned exc_mem_lock		:2;	/* [36-37] */
 	unsigned ph_pr_page		:1;	/* [38] */
 	unsigned io_page		:1;	/* [39] */
 	unsigned isys_page		:1;	/* [40] */
@@ -489,8 +461,7 @@ typedef union mmu_tc_cond_dword {
 		u64 fmtc	:2;	// [14-15]
 		u64 ___x1	:19;	// [34-16]
 		u64 global_sp	:1;	/* [35] */
-		u64 page_bound	:1;	/* [36] */
-		u64 exc_mem_lock :1;	/* [37] */
+		u64 exc_mem_lock :2;	/* [36-37] */
 		u64 ph_pr_page	:1;	/* [38] */
 		u64 io_page	:1;	/* [39] */
 		u64 isys_page	:1;	/* [40] */
@@ -542,8 +513,7 @@ typedef union {
 		u64 fmtc	:2;	// [14-15]
 		u64 ___x1	:19;	// [34-16]
 		u64 global_sp	:1;	/* [35] */
-		u64 page_bound	:1;	/* [36] */
-		u64 exc_mem_lock :1;	/* [37] */
+		u64 exc_mem_lock :2;	/* [36-37] */
 		u64 ph_pr_page	:1;	/* [38] */
 		u64 io_page	:1;	/* [39] */
 		u64 isys_page	:1;	/* [40] */
@@ -563,6 +533,95 @@ typedef union {
 } tc_cond_t;
 
 #define TC_COND_FMT_FULL(cond) (cond.fmt | (cond.fmtc << 3))
+
+/*
+ * A one bit of the fault type field of condition word is used by KVM
+ * to mark fault injected by host for guest kernel
+ */
+#define	kvm_injected		intl_res_bits
+#define	LDST_KVM_FAKE_FMT	LDST_INVALID_FMT
+#define	kvm_copy_user		empt
+
+static inline tc_cond_t tc_set_kvm_fault_injected(tc_cond_t cond)
+{
+	cond.kvm_injected = 1;
+	return cond;
+}
+
+static inline tc_cond_t tc_set_kvm_fake_format(tc_cond_t cond)
+{
+	cond.fmt = LDST_KVM_FAKE_FMT;
+	return cond;
+}
+
+static inline tc_cond_t tc_set_kvm_copy_user(tc_cond_t cond)
+{
+	cond.kvm_copy_user = 1;
+	return cond;
+}
+
+static inline tc_cond_t tc_set_as_kvm_injected(tc_cond_t cond, bool copy_user)
+{
+	cond = tc_set_kvm_fault_injected(cond);
+	cond = tc_set_kvm_fake_format(cond);
+	cond = tc_set_kvm_copy_user(cond);
+	return cond;
+}
+
+static inline tc_cond_t tc_set_as_kvm_passed(tc_cond_t cond)
+{
+	cond = tc_set_kvm_fault_injected(cond);
+	return cond;
+}
+
+static inline bool ftype_test_is_kvm_fault_injected(tc_fault_type_t ftype)
+{
+	return !!AS(ftype).kvm_injected;
+}
+
+static inline bool tc_test_is_kvm_fault_injected(tc_cond_t cond)
+{
+	tc_fault_type_t ftype;
+
+	AW(ftype) = cond.fault_type;
+	return ftype_test_is_kvm_fault_injected(ftype);
+}
+
+static inline bool tc_test_is_kvm_fake_format(tc_cond_t cond)
+{
+	return cond.fmt == LDST_KVM_FAKE_FMT;
+}
+
+static inline bool tc_test_is_kvm_copy_user(tc_cond_t cond)
+{
+	return cond.kvm_copy_user;
+}
+
+static inline bool tc_test_is_as_kvm_injected(tc_cond_t cond)
+{
+	bool injected;
+
+	injected = tc_test_is_kvm_fault_injected(cond);
+	return (injected) ? tc_test_is_kvm_fake_format(cond) : false;
+}
+
+static inline bool tc_test_is_as_kvm_passed(tc_cond_t cond)
+{
+	bool injected;
+
+	injected = tc_test_is_kvm_fault_injected(cond);
+	return (injected) ? !tc_test_is_kvm_fake_format(cond) : false;
+}
+
+static inline bool tc_test_is_as_kvm_copy_user(tc_cond_t cond)
+{
+	bool injected;
+
+	injected = tc_test_is_kvm_fault_injected(cond);
+	return (injected) ? ((tc_test_is_kvm_fake_format(cond)) ?
+				tc_test_is_kvm_copy_user(cond) : false)
+			  : false;
+}
 
 static inline bool tc_cond_is_special_mmu_aau(tc_cond_t cond)
 {
@@ -632,6 +691,9 @@ static inline int tc_cond_to_size(tc_cond_t cond)
 			size = 8;
 	} else if (fmt == TC_FMT_DWORD_Q || fmt == TC_FMT_DWORD_QP) {
 		size = 8;
+	} else if (tc_test_is_as_kvm_injected(cond)) {
+		/* format is fake value, set size to 1 byte */
+		size = 1;
 	} else {
 		size = 1 << ((fmt & 0x7) - 1);
 	}
@@ -778,6 +840,19 @@ static inline int tc_record_asynchronous(trap_cellar_t *tcellar)
 	return is_record_asynchronous(cond);
 }
 
+/*
+ * The function returns the true for page faults caused by hardware
+ * access to hardware stacks or Compilation Units Tables
+ */
+
+static inline bool is_hw_access_page_fault(trap_cellar_t *tcellar)
+{
+	tc_cond_t cond = tcellar->condition;
+
+	return !!(cond.s_f | cond.sru);
+}
+
+
 #endif	/* ! __ASSEMBLY__ */
 
 /*
@@ -836,17 +911,19 @@ static inline int tc_record_asynchronous(trap_cellar_t *tcellar)
 #ifndef	__ASSEMBLY__
 typedef union {
 	struct {
-		u64 index	: 32;	// [31- 0]
-		u64 mas		: 7;	// [38-32]
-		u64 prot	: 1;	//    [39]
-		u64 fmt		: 3;	// [42-40]
-		u64 root	: 1;	//    [43]
-		/* Used only on ES2 (E2K_ISET_V2), deprecated everywhere else. */
-		u64 rg_deprecated : 8;	// [51-44]
-		u64 fmt_h	: 1;	// [52]
-		u64 mode_h	: 1;	// [53]
-		u64 unused	: 2;	// [55-54]
-		u64 mask	: 8;	// [63-56]
+		u64 index	: 32;	/* [31- 0] */
+		u64 mas		: 7;	/* [38-32] */
+		u64 prot	: 1;	/*    [39] */
+		u64 fmt		: 3;	/* [42-40] */
+		u64 root	: 1;	/*    [43] */
+		/* Used only in iset v2, deprecated everywhere else. */
+		u64 rg_deprecated : 7;	/* should be 8 : [51-44] */
+		/* software bit to mark privileged user space access */
+		u64 pm		: 1;	/* [51] */
+		u64 fmt_h	: 1;	/* [52] */
+		u64 mode_h	: 1;	/* [53] */
+		u64 unused	: 2;	/* [55-54] */
+		u64 mask	: 8;	/* [63-56] */
 	};
 	unsigned long word;
 } ldst_rec_op_t;

@@ -267,7 +267,7 @@ extern	bootblock_struct_t *bootblock_virt;	/* bootblock structure */
 #define	SIMULATOR_MACH_FLAG		0x0001	/* system is running on */
 						/* simulator */
 #define	PROTOTYPE_MACH_FLAG_DEPRECATED	0x0002	/* machine is prototype */
-#define	IOHUB_MACH_FLAG			0x0004	/* machine has IOHUB */
+#define	IOHUB_MACH_FLAG_DEPRECATED	0x0004	/* machine has IOHUB */
 #define OLDMGA_MACH_FLAG		0x0008	/* MGA card has old firmware */
 #define MULTILINK_MACH_FLAG		0x0010	/* some nodes are connected */
 						/* by sevral IP links */

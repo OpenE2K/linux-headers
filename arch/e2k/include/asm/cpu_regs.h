@@ -547,11 +547,6 @@ write_OSGD_hi_reg(e2k_osgd_hi_t OSGD_hi)
  * from the high & low word structure
  */
 
-#define	WRITE_OSGD_REG_VALUE(OSGD_hi_value, OSGD_lo_value) \
-({ \
-	WRITE_OSGD_HI_REG_VALUE(OSGD_hi_value); \
-	WRITE_OSGD_LO_REG_VALUE(OSGD_lo_value); \
-})
 #define	BOOT_WRITE_OSGD_REG_VALUE(OSGD_hi_value, OSGD_lo_value) \
 ({ \
 	BOOT_WRITE_OSGD_HI_REG_VALUE(OSGD_hi_value); \

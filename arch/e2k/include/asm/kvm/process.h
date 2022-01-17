@@ -199,12 +199,27 @@ void go2guest(long fn, bool priv_guest);
 
 #define	GET_GUEST_VCPU_STATE_POINTER(__vcpu)				\
 ({									\
-	e2k_addr_t vs = (e2k_addr_t)((__vcpu)->arch.vcpu_state);	\
+	(gva_t)((__vcpu)->arch.guest_vcpu_state);			\
+})
+
+#define	TO_GUEST_VCPU_STATE_PHYS_POINTER(__vcpu)			\
+({									\
+	gpa_t vs = (gpa_t)((__vcpu)->arch.vcpu_state);			\
 									\
 	vs = kvm_vcpu_hva_to_gpa(__vcpu, vs);				\
-	if (is_paging(__vcpu))						\
-		vs = (e2k_addr_t)__guest_va(vs);			\
-	vs;								\
+	(gva_t)vs;							\
+})
+
+#define	TO_GUEST_VCPU_STATE_POINTER(__vcpu)				\
+({									\
+	gpa_t vs;							\
+									\
+	vs = TO_GUEST_VCPU_STATE_PHYS_POINTER(__vcpu);			\
+	if (!IS_INVALID_GPA(vs)) {					\
+		if (is_paging(__vcpu))					\
+			vs = (gpa_t)__guest_va(vs);			\
+	}								\
+	(gva_t)vs;							\
 })
 
 #define	INIT_HOST_VCPU_STATE_GREG_COPY(__ti, __vcpu)			\

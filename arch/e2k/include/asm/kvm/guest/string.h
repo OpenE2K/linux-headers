@@ -3,6 +3,7 @@
 
 #include <linux/types.h>
 #include <linux/errno.h>
+#include <linux/bug.h>
 
 #include <asm/pv_info.h>
 #include <asm/kvm/hypercall.h>
@@ -11,6 +12,12 @@
 
 #define REPLACE_USR_PFAULT(to_pfault_IP) \
 		(current_thread_info()->usr_pfault_jump = to_pfault_IP)
+
+extern unsigned long kvm_fast_kernel_tagged_memory_copy(void *dst, const void *src,
+				size_t len, unsigned long strd_opcode,
+				unsigned long ldrd_opcode, int prefetch);
+extern unsigned long kvm_fast_kernel_tagged_memory_set(void *addr, u64 val, u64 tag,
+				size_t len, u64 strd_opcode);
 
 /*
  * optimized copy memory along with tags
@@ -36,13 +43,11 @@ kvm_do_fast_tagged_memory_set(void *addr, u64 val, u64 tag,
 {
 	long ret;
 
-	if (IS_HOST_KERNEL_ADDRESS((e2k_addr_t)addr)) {
-		ret = HYPERVISOR_fast_tagged_guest_memory_set(addr, val, tag,
-							len, strd_opcode);
-	} else {
+	do {
 		ret = HYPERVISOR_fast_tagged_memory_set(addr, val, tag, len,
 							strd_opcode);
-	}
+	} while (ret == -EAGAIN);
+
 	return ret;
 }
 
@@ -168,8 +173,8 @@ fast_tagged_memory_copy(void *dst, const void *src, size_t len,
 		unsigned long strd_opcode, unsigned long ldrd_opcode,
 		int prefetch)
 {
-	return kvm_fast_tagged_memory_copy(dst, src, len, strd_opcode,
-						ldrd_opcode, prefetch);
+	return kvm_fast_kernel_tagged_memory_copy(dst, src, len, strd_opcode,
+						  ldrd_opcode, prefetch);
 }
 static inline unsigned long
 fast_tagged_memory_copy_user(void *dst, const void *src, size_t len, size_t *copied,
@@ -191,7 +196,7 @@ static inline unsigned long
 fast_tagged_memory_set(void *addr, u64 val, u64 tag,
 		size_t len, u64 strd_opcode)
 {
-	return kvm_fast_tagged_memory_set(addr, val, tag, len, strd_opcode);
+	return kvm_fast_kernel_tagged_memory_set(addr, val, tag, len, strd_opcode);
 }
 static inline unsigned long
 fast_tagged_memory_set_user(void *addr, u64 val, u64 tag,

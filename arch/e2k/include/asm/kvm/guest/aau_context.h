@@ -65,10 +65,10 @@
 		PREFIX_SAVE_AALDIS_V5(KVM, kvm, regs); \
 	} \
 })
-#define KVM_SAVE_AALDIS_V2(regs)	\
+#define KVM_SAVE_AALDIS_V3(regs)	\
 ({ \
 	if (IS_HV_GM()) { \
-		NATIVE_SAVE_AALDIS_V2(regs); \
+		NATIVE_SAVE_AALDIS_V3(regs); \
 	} else { \
 		PREFIX_SAVE_AALDIS_V5(KVM, kvm, regs); \
 	} \
@@ -111,10 +111,10 @@
 
 #define	KVM_GET_ARRAY_DESCRIPTORS(aau_context)	\
 		PREFIX_GET_ARRAY_DESCRIPTORS_V5(KVM, kvm, aau_context)
-#define	KVM_GET_ARRAY_DESCRIPTORS_V2(aau_context)	\
+#define	KVM_GET_ARRAY_DESCRIPTORS_V3(aau_context)	\
 ({ \
 	if (IS_HV_GM()) { \
-		NATIVE_GET_ARRAY_DESCRIPTORS_V2(aau_context); \
+		NATIVE_GET_ARRAY_DESCRIPTORS_V3(aau_context); \
 	} else { \
 		KVM_GET_ARRAY_DESCRIPTORS(aau_context); \
 	} \
@@ -138,10 +138,10 @@
 
 #define	KVM_GET_SYNCHRONOUS_PART(context)	\
 		PREFIX_GET_SYNCHRONOUS_PART_V5(KVM, kvm, context)
-#define	KVM_GET_SYNCHRONOUS_PART_V2(context)	\
+#define	KVM_GET_SYNCHRONOUS_PART_V3(context)	\
 ({ \
 	if (IS_HV_GM()) { \
-		NATIVE_GET_SYNCHRONOUS_PART_V2(context); \
+		NATIVE_GET_SYNCHRONOUS_PART_V3(context); \
 	} else { \
 		KVM_GET_SYNCHRONOUS_PART(context); \
 	} \
@@ -163,10 +163,10 @@ do { \
 		PREFIX_GET_AAU_CONTEXT(KVM, kvm, V5, v5, context, aasr); \
 	} \
 } while (0)
-#define	KVM_GET_AAU_CONTEXT_V2(context, aasr) \
+#define	KVM_GET_AAU_CONTEXT_V3(context, aasr) \
 do { \
 	if (IS_HV_GM()) { \
-		NATIVE_GET_AAU_CONTEXT_V2(context, aasr); \
+		NATIVE_GET_AAU_CONTEXT_V3(context, aasr); \
 	} else { \
 		PREFIX_GET_AAU_CONTEXT(KVM, kvm, V5, v5, context, aasr); \
 	} \
@@ -186,9 +186,9 @@ kvm_save_aaldi(u64 *aaldis)
 	KVM_SAVE_AALDIS(aaldis);
 }
 static inline void
-kvm_save_aaldi_v2(u64 *aaldis)
+kvm_save_aaldi_v3(u64 *aaldis)
 {
-	KVM_SAVE_AALDIS_V2(aaldis);
+	KVM_SAVE_AALDIS_V3(aaldis);
 }
 static inline void
 kvm_save_aaldi_v5(u64 *aaldis)
@@ -202,9 +202,9 @@ kvm_get_array_descriptors(e2k_aau_t *context)
 	KVM_GET_ARRAY_DESCRIPTORS(context);
 }
 static inline void
-kvm_get_array_descriptors_v2(e2k_aau_t *context)
+kvm_get_array_descriptors_v3(e2k_aau_t *context)
 {
-	KVM_GET_ARRAY_DESCRIPTORS_V2(context);
+	KVM_GET_ARRAY_DESCRIPTORS_V3(context);
 }
 static inline void
 kvm_get_array_descriptors_v5(e2k_aau_t *context)
@@ -224,9 +224,9 @@ kvm_get_synchronous_part(e2k_aau_t *context)
 	KVM_GET_SYNCHRONOUS_PART(context);
 }
 static inline void
-kvm_get_synchronous_part_v2(e2k_aau_t *context)
+kvm_get_synchronous_part_v3(e2k_aau_t *context)
 {
-	KVM_GET_SYNCHRONOUS_PART_V2(context);
+	KVM_GET_SYNCHRONOUS_PART_V3(context);
 }
 static inline void
 kvm_get_synchronous_part_v5(e2k_aau_t *context)
@@ -264,7 +264,7 @@ static __always_inline void kvm_set_aau_context(e2k_aau_t *context,
 #define RESTORE_AADS(aau_regs)	\
 		KVM_RESTORE_AADS(aau_regs)
 
-#define SAVE_AALDIS_V2(regs)	KVM_SAVE_AALDIS_V2(regs)
+#define SAVE_AALDIS_V3(regs)	KVM_SAVE_AALDIS_V3(regs)
 #define SAVE_AALDIS_V5(regs)	KVM_SAVE_AALDIS_V5(regs)
 
 #define SAVE_AALDA(aaldas)	KVM_SAVE_AALDAS(aaldas)
@@ -274,17 +274,17 @@ static __always_inline void kvm_set_aau_context(e2k_aau_t *context,
 #define SAVE_AAU_REGS_FOR_PTRACE(regs, ti)	\
 		KVM_SAVE_AAU_REGS_FOR_PTRACE(regs, ti)
 
-#define	GET_ARRAY_DESCRIPTORS_V2(context)	\
-		KVM_GET_ARRAY_DESCRIPTORS_V2(context)
+#define	GET_ARRAY_DESCRIPTORS_V3(context)	\
+		KVM_GET_ARRAY_DESCRIPTORS_V3(context)
 #define	GET_ARRAY_DESCRIPTORS_V5(context)	\
 		KVM_GET_ARRAY_DESCRIPTORS_V5(context)
 
-#define	GET_SYNCHRONOUS_PART_V2(context)	\
-		KVM_GET_SYNCHRONOUS_PART_V2(context)
+#define	GET_SYNCHRONOUS_PART_V3(context)	\
+		KVM_GET_SYNCHRONOUS_PART_V3(context)
 #define	GET_SYNCHRONOUS_PART_V5(context)	\
 		KVM_GET_SYNCHRONOUS_PART_V5(context)
 
-#define	GET_AAU_CONTEXT_V2(context, aasr) KVM_GET_AAU_CONTEXT_V2(context, aasr)
+#define	GET_AAU_CONTEXT_V3(context, aasr) KVM_GET_AAU_CONTEXT_V3(context, aasr)
 #define	GET_AAU_CONTEXT_V5(context, aasr) KVM_GET_AAU_CONTEXT_V5(context, aasr)
 
 static inline void

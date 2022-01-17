@@ -13,29 +13,17 @@
 
 #define	E2K_4K_PAGE_SHIFT		12		   /*  4 KBytes page */
 #define	E2K_2M_PAGE_SHIFT		21		   /*  2 MBytes page */
-#define	E2K_4M_PAGE_SHIFT		22		   /*  4 MBytes page */
 
-#define	E2K_SMALL_PAGE_SHIFT		E2K_4K_PAGE_SHIFT  /*  4 KBytes page */
+#define	E2K_SMALL_PAGE_SHIFT		E2K_4K_PAGE_SHIFT
 
-/* 
- * large page: 4MBytes for E2C+ and 2MBytes for others
- */
-
-#define	E2K_LARGE_PAGE_SHIFT \
-	(!cpu_has(CPU_FEAT_ISET_V3) ? E2K_4M_PAGE_SHIFT : E2K_2M_PAGE_SHIFT)
-
-#define	BOOT_E2K_LARGE_PAGE_SHIFT \
-	(!boot_cpu_has(CPU_FEAT_ISET_V3) ? E2K_4M_PAGE_SHIFT : E2K_2M_PAGE_SHIFT)
+#define	E2K_LARGE_PAGE_SHIFT		E2K_2M_PAGE_SHIFT
+#define	BOOT_E2K_LARGE_PAGE_SHIFT	E2K_2M_PAGE_SHIFT
 
 /*  4 KBytes page */
 #define	PAGE_SHIFT			E2K_SMALL_PAGE_SHIFT
 
-/*  large page    */
-#define	LARGE_PAGE_SHIFT		E2K_LARGE_PAGE_SHIFT
-
 #ifndef __ASSEMBLY__
 #define	E2K_2M_PAGE_SIZE		(1UL << E2K_2M_PAGE_SHIFT)
-#define	E2K_4M_PAGE_SIZE		(1UL << E2K_4M_PAGE_SHIFT)
 #endif	/* !(__ASSEMBLY__) */
 
 #define	E2K_SMALL_PAGE_SIZE		(1 << E2K_SMALL_PAGE_SHIFT)
@@ -46,26 +34,13 @@
 #define PAGE_SIZE			_BITUL(PAGE_SHIFT)
 #define LARGE_PAGE_SIZE    		E2K_LARGE_PAGE_SIZE
 
-#if defined(CONFIG_CPU_ES2)
-# define E2K_MAX_PAGE_SIZE		(1 << E2K_4M_PAGE_SHIFT)
-#else
-# define E2K_MAX_PAGE_SIZE		(1 << E2K_2M_PAGE_SHIFT)
-#endif
-
-#define	E2K_SMALL_PAGE_MASK		(~(E2K_SMALL_PAGE_SIZE - 1))
-
-#define	E2K_LARGE_PAGE_MASK		(~(E2K_LARGE_PAGE_SIZE - 1))
-#define	BOOT_E2K_LARGE_PAGE_MASK	(~(BOOT_E2K_LARGE_PAGE_SIZE - 1))
+#define E2K_MAX_PAGE_SIZE		(1 << E2K_2M_PAGE_SHIFT)
 
 #define	PAGE_MASK			(~(PAGE_SIZE - 1))
-#define	LARGE_PAGE_MASK			E2K_LARGE_PAGE_MASK
 
 #define HPAGE_SHIFT			E2K_LARGE_PAGE_SHIFT
 #define HPAGE_SIZE			((1UL) << HPAGE_SHIFT)
-#define HPAGE_MASK			(~(HPAGE_SIZE - 1))
 #define HUGETLB_PAGE_ORDER		(HPAGE_SHIFT - PAGE_SHIFT)
-
-#define HPAGE_PMD_MAX_ORDER		(E2K_4M_PAGE_SHIFT - PAGE_SHIFT)
 
 
 #ifdef __KERNEL__

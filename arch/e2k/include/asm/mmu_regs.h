@@ -81,31 +81,27 @@ boot_read_MMU_reg(mmu_addr_t mmu_addr)
 /*
  * Read MMU Control register
  */
-#define	read_MMU_CR()	read_MMU_reg(MMU_ADDR_CR)
-#define	READ_MMU_CR()	\
-	READ_MMU_REG(_MMU_REG_NO_TO_MMU_ADDR_VAL(_MMU_CR_NO))
-static inline	unsigned long
-get_MMU_CR(void)
+#define	READ_MMU_CR()	((e2k_mmu_cr_t) \
+		{ .word = READ_MMU_REG(_MMU_REG_NO_TO_MMU_ADDR_VAL(_MMU_CR_NO)) })
+static inline e2k_mmu_cr_t get_MMU_CR(void)
 {
-	unsigned long mmu_cr;
+	e2k_mmu_cr_t mmu_cr;
 
 	DebugMR("Get MMU Control Register\n");
 	mmu_cr = READ_MMU_CR();
-	DebugMR("MMU Control Register state : 0x%lx\n", mmu_cr);
+	DebugMR("MMU Control Register state : 0x%llx\n", AW(mmu_cr));
 	return mmu_cr;
 }
 
 /*
  * Write MMU Control register
  */
-#define	write_MMU_CR(mmu_cr)	write_MMU_reg(MMU_ADDR_CR, mmu_cr)
+#define	write_MMU_CR(mmu_cr)	write_MMU_reg(MMU_ADDR_CR, AW(mmu_cr))
 #define	WRITE_MMU_CR(mmu_cr)	\
-		WRITE_MMU_REG(_MMU_REG_NO_TO_MMU_ADDR_VAL(_MMU_CR_NO), \
-			mmu_reg_val(mmu_cr))
-static inline	void
-set_MMU_CR(unsigned long mmu_cr)
+		WRITE_MMU_REG(_MMU_REG_NO_TO_MMU_ADDR_VAL(_MMU_CR_NO), AW(mmu_cr))
+static inline void set_MMU_CR(e2k_mmu_cr_t mmu_cr)
 {
-	DebugMR("Set MMU Control Register to 0x%lx\n", mmu_cr);
+	DebugMR("Set MMU Control Register to 0x%llx\n", AW(mmu_cr));
 	WRITE_MMU_CR(mmu_cr);
 	DebugMR("Read MMU Control Register : 0x%llx\n",
 		READ_MMU_REG(_MMU_REG_NO_TO_MMU_ADDR_VAL(_MMU_CR_NO)));
@@ -683,18 +679,11 @@ flush_ICACHE_kernel_line(e2k_addr_t virt_addr)
 static inline void
 boot_native_invalidate_CACHE_L12(void)
 {
-	int invalidate_supported;
 	unsigned long flags;
-
-	/* Invalidate operation was removed in E2S */
-	invalidate_supported = BOOT_NATIVE_IS_MACHINE_ES2;
 
 	raw_all_irq_save(flags);
 	E2K_WAIT_MA;
-	if (invalidate_supported)
-		NATIVE_FLUSH_CACHE_L12(flush_op_invalidate_cache_L12);
-	else
-		NATIVE_FLUSH_CACHE_L12(flush_op_write_back_cache_L12);
+	NATIVE_FLUSH_CACHE_L12(flush_op_write_back_cache_L12);
 	E2K_WAIT_FLUSH;
 	raw_all_irq_restore(flags);
 }

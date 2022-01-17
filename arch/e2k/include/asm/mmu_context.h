@@ -245,8 +245,9 @@ reload_root_pt(struct mm_struct *mm)
 static inline void
 set_root_pt(pgd_t *root_pt)
 {
-	BUG_ON(MMU_IS_SEPARATE_PT());
 	set_MMU_U_PPTB(__pa(root_pt));
+	if (MMU_IS_SEPARATE_PT())
+		set_MMU_OS_PPTB(__pa(root_pt));
 }
 
 /*
@@ -442,15 +443,12 @@ set_kernel_MMU_state(void)
 }
 
 #ifdef	CONFIG_SECONDARY_SPACE_SUPPORT
-extern	inline void
-set_secondary_space_MMU_state(void)
+static inline void set_secondary_space_MMU_state(void)
 {
-	unsigned long mmu_cr;
-
-	mmu_cr = get_MMU_CR();
-	mmu_cr |= _MMU_CR_UPT_EN;
+	e2k_mmu_cr_t mmu_cr = get_MMU_CR();
+	mmu_cr.upt = 1;
 	if (machine.native_iset_ver >= E2K_ISET_V5)
-		mmu_cr |= _MMU_CR_SNXE;
+		mmu_cr.snxe = 1;
 	set_MMU_CR(mmu_cr);
 }
 #else	/* ! CONFIG_SECONDARY_SPACE_SUPPORT */

@@ -74,6 +74,10 @@ static inline void native_flush_tlb_kernel_range(unsigned long start, unsigned l
 	native_flush_tlb_all();
 }
 
+extern void generic_local_flush_tlb_mm_range(struct mm_struct *mm,
+		mm_context_t *context, cpumask_t *mm_cpumask,
+		unsigned long start, unsigned long end,
+		unsigned long stride, u32 levels_mask, bool trace_enabled);
 extern void generic_flush_tlb_mm(struct mm_struct *mm, mm_context_t *context,
 		cpumask_t *mm_cpumask, bool trace_enabled);
 extern void generic_flush_tlb_page(struct mm_struct *mm, mm_context_t *context,

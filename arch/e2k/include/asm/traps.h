@@ -9,12 +9,14 @@
 #define _E2K_TRAPS_H
 
 #include <linux/interrupt.h>
+#include <asm/hw_irq.h>
 #include <asm/ptrace.h>
 #include <asm/trap_def.h>
 
 typedef void (*exc_function)(struct pt_regs *regs);
 extern const exc_function exc_tbl[];
 extern const char *exc_tbl_name[];
+union pf_mode;
 
 #define S_SIG(regs, signo, trapno, code)				       \
 do {									       \
@@ -44,7 +46,8 @@ extern int handle_proc_stack_bounds(struct e2k_stacks *stacks,
 extern int handle_chain_stack_bounds(struct e2k_stacks *stacks,
 		struct trap_pt_regs *trap);
 extern int do_page_fault(struct pt_regs *const regs, e2k_addr_t address,
-		tc_cond_t condition, tc_mask_t mask, const int instr_page);
+		tc_cond_t condition, tc_mask_t mask, const int instr_page,
+		union pf_mode *mode_p);
 #ifdef CONFIG_KVM_ASYNC_PF
 extern void do_pv_apf_wake(struct pt_regs *regs);
 #endif /* */
@@ -175,7 +178,7 @@ native_init_guest_system_handlers_table(void)
 {
 	if (paravirt_enabled()) {
 		/* It is native guest */
-		setup_APIC_vector_handler(SYSRQ_SHOWSTATE_EPIC_VECTOR,
+		setup_PIC_vector_handler(SYSRQ_SHOWSTATE_EPIC_VECTOR,
 			native_sysrq_showstate_interrupt, 1,
 			"native_sysrq_showstate_interrupt");
 	}
