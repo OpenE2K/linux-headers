@@ -12,7 +12,7 @@ typedef struct kvm_proc_ctxt_hw_stacks {
 	size_t d_stack_sz;
 	bool protected;
 	u64 gst_mkctxt_trampoline;
-	void *ps_frames;
+	e2k_mem_ps_t *ps_frames;
 	e2k_mem_crs_t *cs_frames;
 } kvm_proc_ctxt_hw_stacks_t;
 

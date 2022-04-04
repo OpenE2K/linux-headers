@@ -329,6 +329,11 @@ host_exit_to_usermode_loop(struct pt_regs *regs, bool syscall, bool has_signal)
 	SAVE_GUEST_KERNEL_GREGS_COPY_TO(k_gregs, g_gregs, false);	\
 })
 
+#define SET_PREEMPT_CNT_GUEST_KERNEL_GREGS_COPY(__gti, val)		\
+({									\
+	__gti->gk_gregs.g[SMP_CPU_ID_GREGS_PAIRS_INDEX].base = val;	\
+})
+
 #ifdef	CONFIG_SMP
 #define	RESTORE_GUEST_KERNEL_GREGS_COPY_FROM(__k_gregs, __g_gregs,	\
 						only_kernel)		\

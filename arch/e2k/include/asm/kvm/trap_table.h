@@ -701,6 +701,11 @@ pass_the_trap_to_guest(struct pt_regs *regs,
 			return 0;
 		}
 	}
+	if (trap_no == exc_instr_debug_num ||
+			trap_no == exc_data_debug_num) {
+		/* debug trap on host, handle by host */
+		return 0;
+	}
 	if (kvm_vcpu_in_hypercall(vcpu)) {
 		/* the trap on host, so handles it by host */
 		return 0;
