@@ -113,7 +113,7 @@ native_copy_from_user_with_tags(void *to, const void __user *from,
 	(res);								\
 })
 
-#define	__kvm_get_guest_atomic(__slot, gfn, __hk_ptr, offset,		\
+#define	__kvm_get_guest(__slot, gfn, __hk_ptr, offset,			\
 					gk_ptrp, __writable)		\
 ({									\
 	__typeof__(__hk_ptr) __user *gk_ptr;				\
@@ -126,12 +126,12 @@ native_copy_from_user_with_tags(void *to, const void __user *from,
 	} else {							\
 		gk_ptr = (__typeof__((__hk_ptr)) *)(addr + offset);	\
 		gk_ptrp = gk_ptr;					\
-		r = native_get_user((__hk_ptr), gk_ptr);		\
+		r = __get_user((__hk_ptr), gk_ptr);			\
 	}								\
 	r;								\
 })
 
-#define	kvm_get_guest_atomic(kvm, gpa, _hk_ptr)				\
+#define	kvm_get_guest(kvm, gpa, _hk_ptr)				\
 ({									\
 	gfn_t gfn = (gpa) >> PAGE_SHIFT;				\
 	struct kvm_memory_slot *slot = gfn_to_memslot(kvm, gfn);	\
@@ -139,12 +139,10 @@ native_copy_from_user_with_tags(void *to, const void __user *from,
 	__typeof__(_hk_ptr) __user *unused;				\
 	int r;								\
 									\
-	__kvm_get_guest_atomic(slot, gfn, (_hk_ptr), offset,		\
-				unused, NULL);				\
+	__kvm_get_guest(slot, gfn, (_hk_ptr), offset, unused, NULL);	\
 })
 
-#define	kvm_vcpu_get_guest_ptr_atomic(vcpu, gpa, _hk_ptr,		\
-					_gk_ptrp, _writable)		\
+#define	kvm_vcpu_get_guest_ptr(vcpu, gpa, _hk_ptr, _gk_ptrp, _writable)	\
 ({									\
 	gfn_t gfn = (gpa) >> PAGE_SHIFT;				\
 	struct kvm_memory_slot *slot;					\
@@ -152,16 +150,37 @@ native_copy_from_user_with_tags(void *to, const void __user *from,
 	int r;								\
 									\
 	slot = kvm_vcpu_gfn_to_memslot(vcpu, gfn);			\
-	r = __kvm_get_guest_atomic(slot, gfn, (_hk_ptr), offset,	\
+	r = __kvm_get_guest(slot, gfn, (_hk_ptr), offset,		\
 					_gk_ptrp, _writable);		\
 	r;								\
 })
-#define	kvm_vcpu_get_guest_atomic(vcpu, gpa, ___hk_ptr)			\
+#define	kvm_vcpu_get_guest(vcpu, gpa, ___hk_ptr)			\
 ({									\
 	__typeof__(___hk_ptr) __user *unused;				\
 									\
-	kvm_vcpu_get_guest_ptr_atomic(vcpu, gpa, ___hk_ptr,		\
-					unused, NULL);			\
+	kvm_vcpu_get_guest_ptr(vcpu, gpa, ___hk_ptr, unused, NULL);	\
+})
+
+#define	kvm_get_guest_atomic(kvm, gpa, __hk_ptr)			\
+({									\
+	__typeof__(__hk_ptr) __user *gk_ptr;				\
+	gfn_t gfn = (gpa) >> PAGE_SHIFT;				\
+	struct kvm_memory_slot *slot = gfn_to_memslot(kvm, gfn);	\
+	int offset = offset_in_page(gpa);				\
+	bool writable;							\
+	unsigned long addr;						\
+	int r;								\
+									\
+	addr = gfn_to_hva_memslot_prot(slot, gfn, &writable);		\
+	if (unlikely(kvm_is_error_hva(addr))) {				\
+		r = -EFAULT;						\
+	} else {							\
+		gk_ptr = (__typeof__((__hk_ptr)) *)(addr + offset);	\
+		pagefault_disable();					\
+		r = native_get_user((__hk_ptr), gk_ptr);		\
+		pagefault_enable();					\
+	}								\
+	r;								\
 })
 
 extern unsigned long kvm_copy_in_user_with_tags(void __user *to,

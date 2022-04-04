@@ -57,6 +57,8 @@ typedef struct gmm_struct {
 	cpumask_t cpu_vm_mask;		/* mask of CPUs where the mm is */
 					/* in use or was some early */
 	gva_cache_t *gva_cache;		/* gva -> gpa,hva cache */
+	struct rhashtable *ctx_stacks;	/* hash table with signal stacks */
+					/* for contexts created by guest */
 } gmm_struct_t;
 
 /* same as accessor for struct mm_struct's cpu_vm_mask but for guest mm */
@@ -113,7 +115,7 @@ kvm_find_gmmid(gmmid_table_t *gmmid_table, int gmmid_nr)
 {
 	kvm_nid_t *nid;
 
-	nid = kvm_try_find_nid(gmmid_table, gmmid_nr, gmmid_hashfn(gmmid_nr));
+	nid = kvm_find_nid(gmmid_table, gmmid_nr, gmmid_hashfn(gmmid_nr));
 	if (nid == NULL)
 		return NULL;
 	return gmmid_entry(nid);

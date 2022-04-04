@@ -182,9 +182,6 @@ typedef struct thread_struct {
 
 #define INIT_THREAD { 0 }
 
-#define INIT_MMAP \
-{ &init_mm, 0, 0, NULL, PAGE_SHARED, VM_READ | VM_WRITE | VM_EXEC, 1, NULL, NULL }
-
 extern void start_thread(struct pt_regs *regs,
 			unsigned long entry, unsigned long sp);
 extern int native_do_prepare_start_thread_frames(unsigned long entry,

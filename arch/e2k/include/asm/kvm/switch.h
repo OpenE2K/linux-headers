@@ -1258,6 +1258,9 @@ static inline bool host_guest_syscall_enter(struct pt_regs *regs,
 	kvm_switch_to_host_mmu_pid(vcpu, current->mm);
 	kvm_set_intc_emul_flag(regs);
 
+	vcpu->mode = OUTSIDE_GUEST_MODE;
+	smp_wmb();	/* See the comment in kvm_vcpu_exiting_guest_mode() */
+
 	return true;
 }
 

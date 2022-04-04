@@ -196,6 +196,8 @@ typedef	struct pt_regs {
 	bool		need_inject;	/* flag for unconditional injection */
 					/* trap to guest to avoid acces to */
 					/* guest user space in trap context */
+	bool		dont_inject;	/* page fault injection to the guest */
+					/* is prohibited */
 	bool		in_hypercall;	/* trap is occured in hypercall */
 	bool		is_guest_user;	/* trap/system call on/from guest */
 					/* user */
@@ -801,7 +803,6 @@ extern unsigned long profile_pc(struct pt_regs *regs);
 #else
 #define profile_pc(regs) instruction_pointer(regs)
 #endif
-extern void show_regs(struct pt_regs *);
 extern int syscall_trace_entry(struct pt_regs *regs);
 extern void syscall_trace_leave(struct pt_regs *regs);
 

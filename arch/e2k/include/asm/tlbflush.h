@@ -69,10 +69,50 @@ extern void native_flush_tlb_all(void);
 	native_flush_tlb_mm_range((mm), (start), (end), \
 				  PMD_SIZE, FLUSH_TLB_LEVELS_LAST)
 
+/*
+ * Signal to all users of this mm that it has been flushed.
+ * Invalid context will be updated while activating or switching to.
+ *
+ * Things to consider:
+ *
+ * 1) Clearing the whole context for CPUs to which we send the flush
+ * ipi looks unnecessary, but is needed to avoid race conditions. The
+ * problem is that there is a window between reading mm_cpumask() and
+ * deciding which context should be set to 0. In that window situation
+ * could have changed, so the only safe way is to set mm context on
+ * ALL cpus to 0.
+ *
+ * 2) Setting it to 0 essentially means that the cpus which receive the
+ * flush ipis cannot flush only a range of pages because they do not
+ * know the context, so they will flush the whole mm.
+ */
+static inline void clear_mm_remote_context(mm_context_t *context, int cpu)
+{
+	int i;
+
+#pragma loop count (NR_CPUS)
+	for (i = 0; i < nr_cpu_ids; i++) {
+		if (i == cpu)
+			/* That being said, current CPU can still
+			 * flush only the given range of pages. */
+			continue;
+		context->cpumsk[i] = 0;
+	}
+}
+
 static inline void native_flush_tlb_kernel_range(unsigned long start, unsigned long end)
 {
 	native_flush_tlb_all();
 }
+
+extern void mmu_pid_flush_tlb_mm(mm_context_t *context, bool is_active,
+		cpumask_t *mm_cpumask, int cpu, bool trace_enabled);
+extern void mmu_pid_flush_tlb_page(mm_context_t *context, bool is_active,
+		cpumask_t *mm_cpumask, unsigned long addr, int cpu,
+		bool trace_enabled);
+extern void mmu_pid_flush_tlb_range(mm_context_t *context, bool is_active,
+		cpumask_t *mm_cpumask, unsigned long start, unsigned long end,
+		unsigned long stride, u32 levels_mask, int cpu, bool trace_enabled);
 
 extern void generic_local_flush_tlb_mm_range(struct mm_struct *mm,
 		mm_context_t *context, cpumask_t *mm_cpumask,

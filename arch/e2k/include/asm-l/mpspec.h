@@ -630,6 +630,7 @@ static inline void physid_set_mask_of_physid(int physid, physid_mask_t *map)
 #define PHYSID_MASK_NONE	{ {[0 ... PHYSID_ARRAY_SIZE-1] = 0UL} }
 
 extern physid_mask_t phys_cpu_present_map;
+extern physid_mask_t phys_cpu_offline_map;
 
 #endif	/* __ASSEMBLY__ */
 

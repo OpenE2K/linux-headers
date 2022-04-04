@@ -68,6 +68,9 @@
 #define APBLOCK_MAJOR		38   /* AP1000 Block device */
 #define DDV_MAJOR		39   /* AP1000 DDV block device */
 #define NBD_MAJOR		43   /* Network block device	*/
+#ifdef CONFIG_MCST
+#define MCST_AUX_TTY_MAJOR	44
+#endif
 #define RISCOM8_NORMAL_MAJOR	48
 #define DAC960_MAJOR		48   /* 48..55 */
 #define RISCOM8_CALLOUT_MAJOR	49

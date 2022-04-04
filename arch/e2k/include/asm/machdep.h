@@ -421,6 +421,25 @@ CPUHAS(CPU_HWBUG_C3,
 		!IS_ENABLED(CONFIG_CPU_E16C),
 		false,
 		cpu == IDR_E16C_MDL && revision == 0);
+/* #130291 - HRET does not clean INTC_INFO_CU/INTC_PTR_CU.
+ * Workaround - clean it before each HRET */
+CPUHAS(CPU_HWBUG_HRET_INTC_CU,
+		IS_ENABLED(CONFIG_E2K_MACHINE),
+		IS_ENABLED(CONFIG_CPU_E2C3) || IS_ENABLED(CONFIG_CPU_E12C) ||
+			IS_ENABLED(CONFIG_CPU_E16C),
+		cpu == IDR_E2C3_MDL || cpu == IDR_E12C_MDL ||
+			cpu == IDR_E16C_MDL);
+/* #137536 - intercept (or interrupt), after writing CR, while hardware is
+ * waiting for fill CF may corrupt all other CRs
+ * Workaround - add wait ma_c=1 to the same instruction, as CR write
+ * This workaround covers most possible cases, but not all of them */
+CPUHAS(CPU_HWBUG_INTC_CR_WRITE,
+		!IS_ENABLED(CONFIG_CPU_E16C) &&
+			!IS_ENABLED(CONFIG_CPU_E2C3),
+		false,
+		(cpu == IDR_E16C_MDL && revision == 0 ||
+		cpu == IDR_E2C3_MDL && revision == 0) &&
+			is_hardware_guest);
 
 /*
  * Not bugs but features go here

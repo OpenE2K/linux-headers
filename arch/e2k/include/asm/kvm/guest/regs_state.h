@@ -333,6 +333,12 @@ do { \
 #define RESTORE_COMMON_REGS(regs) \
 		KVM_RESTORE_COMMON_REGS(regs)
 
+#define CLEAR_DAM			\
+({					\
+	if (IS_HV_GM())			\
+		NATIVE_CLEAR_DAM;	\
+})
+
 static inline void
 save_glob_regs_v3(global_regs_t *gregs)
 {

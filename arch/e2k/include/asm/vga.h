@@ -83,4 +83,15 @@ static inline u8 vga_readb(volatile const u8 *addr)
 }
 #endif	/* CONFIG_KVM_GUEST_KERNEL */
 
+/*
+ * Our drivers doens't use VGA legacy resources so
+ * we assume we can't have any conflicts
+ */
+#define __ARCH_HAS_VGA_CONFLICT
+struct pci_dev;
+static inline int vga_conflicts(struct pci_dev *p1, struct pci_dev *p2)
+{
+	return 0;
+}
+
 #endif

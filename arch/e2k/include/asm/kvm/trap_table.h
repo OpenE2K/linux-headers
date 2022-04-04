@@ -157,6 +157,11 @@ is_guest_TIRs_frozen(struct pt_regs *regs)
 	return false;	/* none any guest */
 }
 
+static inline bool is_injected_guest_coredump(struct pt_regs *regs)
+{
+	return false;	/* none any guest */
+}
+
 static inline bool
 handle_guest_last_wish(struct pt_regs *regs)
 {
@@ -273,6 +278,7 @@ extern unsigned long kvm_pass_virqs_to_guest(struct pt_regs *regs,
 				unsigned long TIR_hi, unsigned long TIR_lo);
 extern unsigned long kvm_pass_coredump_trap_to_guest(struct kvm_vcpu *vcpu,
 							struct pt_regs *regs);
+extern void kvm_pass_coredump_to_all_vm(struct pt_regs *regs);
 extern unsigned long kvm_pass_clw_fault_to_guest(struct pt_regs *regs,
 				trap_cellar_t *tcellar);
 extern unsigned long kvm_pass_page_fault_to_guest(struct pt_regs *regs,
@@ -283,12 +289,18 @@ extern int do_hret_last_wish_intc(struct kvm_vcpu *vcpu, struct pt_regs *regs);
 
 extern void trap_handler_trampoline(void);
 extern void syscall_handler_trampoline(void);
+extern void host_mkctxt_trampoline(void);
+extern void return_pv_vcpu_from_mkctxt(void);
 extern void trap_handler_trampoline_continue(void);
 extern void syscall_handler_trampoline_continue(u64 sys_rval);
+extern void host_mkctxt_trampoline_continue(void);
+extern void return_pv_vcpu_from_mkctxt_continue(void);
 extern void syscall_fork_trampoline(void);
 extern void syscall_fork_trampoline_continue(u64 sys_rval);
 extern notrace long return_pv_vcpu_trap(void);
 extern notrace long return_pv_vcpu_syscall(void);
+extern notrace void pv_vcpu_mkctxt_trampoline_inject(void);
+extern notrace void pv_vcpu_mkctxt_complete(void);
 
 static __always_inline void
 kvm_init_guest_traps_handling(struct pt_regs *regs, bool user_mode_trap)
@@ -542,6 +554,11 @@ is_guest_TIRs_frozen(struct pt_regs *regs)
 	return kvm_is_guest_TIRs_frozen(regs);
 }
 
+static inline bool is_injected_guest_coredump(struct pt_regs *regs)
+{
+	return regs->traps_to_guest == core_dump_mask;
+}
+
 static inline bool
 handle_guest_last_wish(struct pt_regs *regs)
 {
@@ -700,11 +717,12 @@ pass_coredump_trap_to_guest(struct pt_regs *regs)
 {
 	struct kvm_vcpu *vcpu;
 
-	if (!kvm_test_intc_emul_flag(regs))
+	if (!kvm_test_intc_emul_flag(regs)) {
+		kvm_pass_coredump_to_all_vm(regs);
 		return 0;
+	}
 
 	vcpu = current_thread_info()->vcpu;
-
 
 	return kvm_pass_coredump_trap_to_guest(vcpu, regs);
 }

@@ -18,6 +18,8 @@ extern long kvm_guest_ttable_entry5(int sys_num,
 extern long kvm_guest_ttable_entry6(int sys_num,
 		u64 arg1, u64 arg2, u64 arg3, u64 arg4, u64 arg5, u64 arg6);
 
+extern void kvm_guest_mkctxt_trampoline(void);
+
 static __always_inline void kvm_init_pt_regs_copyed_fields(struct pt_regs *regs)
 {
 #ifdef	CONFIG_KVM_GUEST_KERNEL
@@ -203,6 +205,12 @@ static inline bool
 is_guest_TIRs_frozen(struct pt_regs *regs)
 {
 	return false;	/* none any guest */
+}
+
+static inline bool is_injected_guest_coredump(struct pt_regs *regs)
+{
+	/* nested guests is not supported */
+	return false;
 }
 
 static inline void clear_fork_child_pt_regs(struct pt_regs *childregs)

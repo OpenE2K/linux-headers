@@ -161,6 +161,10 @@ typedef struct {
 	size_t cached_stacks_size;
 } mm_context_t;
 
+#define INIT_MM_CONTEXT(mm) \
+	.context = { \
+		.cut_mask_lock = __MUTEX_INITIALIZER(mm.context.cut_mask_lock), \
+	} \
 
 /* Version for fast syscalls, so it must be inlined.
  * Must be used only for current. */

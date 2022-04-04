@@ -32,7 +32,7 @@
 })
 
 extern void print_stack_frames(struct task_struct *task,
-		struct pt_regs *pt_regs, int show_reg_window) __cold;
+		const struct pt_regs *pt_regs, int show_reg_window) __cold;
 extern void print_mmap(struct task_struct *task) __cold;
 extern void print_va_tlb(e2k_addr_t addr, int large_page) __cold;
 extern void print_all_TC(const trap_cellar_t *TC, int TC_count) __cold;
@@ -861,6 +861,18 @@ do { \
 		pr_info("%s (pid=%d): " format, \
 				current->comm, current->pid, ##__VA_ARGS__); \
 } while (0)
+
+extern void __debug_signal_print(const char *message,
+		struct pt_regs *regs, bool print_stack) __cold;
+
+static inline void debug_signal_print(const char *message,
+		struct pt_regs *regs, bool print_stack)
+{
+	if (likely(!debug_signal))
+		return;
+
+	__debug_signal_print(message, regs, print_stack);
+}
 
 extern int debug_trap;
 

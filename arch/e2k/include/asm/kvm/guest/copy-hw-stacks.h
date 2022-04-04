@@ -34,7 +34,7 @@ kvm_kernel_hw_stack_frames_copy(u64 *dst, const u64 *src, unsigned long size)
 }
 
 static __always_inline void
-kvm_collapse_kernel_ps(u64 *dst, const u64 *src, u64 spilled_size)
+kvm_collapse_kernel_ps(pt_regs_t *regs, u64 *dst, const u64 *src, u64 spilled_size)
 {
 	e2k_psp_hi_t k_psp_hi;
 	u64 ps_ind, ps_size;
@@ -55,6 +55,8 @@ kvm_collapse_kernel_ps(u64 *dst, const u64 *src, u64 spilled_size)
 	k_psp_hi = NATIVE_NV_READ_PSP_HI_REG();
 	k_psp_hi.PSP_hi_ind = size;
 	HYPERVISOR_update_psp_hi(k_psp_hi.PSP_hi_half);
+	BUG_ON(regs->copyed.ps_size < spilled_size);
+	regs->copyed.ps_size -= spilled_size;
 
 	DebugUST("move spilled procedure part from host top %px to "
 		"bottom %px, size 0x%llx\n",
@@ -65,7 +67,7 @@ kvm_collapse_kernel_ps(u64 *dst, const u64 *src, u64 spilled_size)
 }
 
 static __always_inline void
-kvm_collapse_kernel_pcs(u64 *dst, const u64 *src, u64 spilled_size)
+kvm_collapse_kernel_pcs(pt_regs_t *regs, u64 *dst, const u64 *src, u64 spilled_size)
 {
 	e2k_pcsp_hi_t k_pcsp_hi;
 	u64 pcs_ind, pcs_size;
@@ -86,6 +88,8 @@ kvm_collapse_kernel_pcs(u64 *dst, const u64 *src, u64 spilled_size)
 	k_pcsp_hi = NATIVE_NV_READ_PCSP_HI_REG();
 	k_pcsp_hi.PCSP_hi_ind = size;
 	HYPERVISOR_update_pcsp_hi(k_pcsp_hi.PCSP_hi_half);
+	BUG_ON(regs->copyed.pcs_size < spilled_size);
+	regs->copyed.pcs_size -= spilled_size;
 
 	DebugUST("move spilled chain part from host top %px to "
 		"bottom %px, size 0x%llx\n",
@@ -504,7 +508,8 @@ kvm_copy_injected_pcs_frames_to_user(pt_regs_t *regs, int frames_num)
 	ATOMIC_GET_HW_PCS_SIZES_BASE_TOP(pcs_ind, pcs_size, pcs_base, pcsh_top);
 
 	/* guest user stacks part spilled to kernel should be already copyed */
-	BUG_ON(PCSHTP_SIGN_EXTEND(regs->copyed.pcs_size != stacks->pcshtp));
+	BUG_ON(PCSHTP_SIGN_EXTEND(regs->copyed.pcs_size != stacks->pcshtp &&
+					stacks->pcshtp != SZ_OF_CR));
 
 	src = (void *)(pcs_base + regs->copyed.pcs_size);
 	DebugUST("chain stack at kernel from %px, size 0x%lx + 0x%lx, "
@@ -647,15 +652,15 @@ kernel_hw_stack_frames_copy(u64 *dst, const u64 *src, unsigned long size)
 }
 
 static __always_inline void
-collapse_kernel_ps(u64 *dst, const u64 *src, u64 spilled_size)
+collapse_kernel_ps(pt_regs_t *regs, u64 *dst, const u64 *src, u64 spilled_size)
 {
-	kvm_collapse_kernel_ps(dst, src, spilled_size);
+	kvm_collapse_kernel_ps(regs, dst, src, spilled_size);
 }
 
 static __always_inline void
-collapse_kernel_pcs(u64 *dst, const u64 *src, u64 spilled_size)
+collapse_kernel_pcs(pt_regs_t *regs, u64 *dst, const u64 *src, u64 spilled_size)
 {
-	kvm_collapse_kernel_pcs(dst, src, spilled_size);
+	kvm_collapse_kernel_pcs(regs, dst, src, spilled_size);
 }
 
 static __always_inline int

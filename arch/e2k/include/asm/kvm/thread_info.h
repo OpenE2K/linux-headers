@@ -179,6 +179,7 @@ typedef struct gthread_info {
 					/* on host */
 					/* NULL for guest kernel threads */
 	hpa_t nonp_root_hpa;		/* physical base of nonpaging root PT */
+	u64 curr_ctx_key;		/* Key of curr context signal stack */
 	bool gmm_in_release;		/* guest mm is releasing (exit_mm()) */
 
 	/* following fields should be updated for each multi-stack process */

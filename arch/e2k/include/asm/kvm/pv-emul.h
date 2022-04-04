@@ -136,6 +136,35 @@ static inline bool kvm_vcpu_in_hypercall(struct kvm_vcpu *vcpu)
 	return vcpu->arch.sw_ctxt.in_hypercall;
 }
 
+static inline void kvm_vcpu_set_dont_inject(struct kvm_vcpu *vcpu)
+{
+	vcpu->arch.sw_ctxt.dont_inject = true;
+}
+
+static inline void kvm_vcpu_reset_dont_inject(struct kvm_vcpu *vcpu)
+{
+	vcpu->arch.sw_ctxt.dont_inject = false;
+}
+
+static inline bool kvm_vcpu_test_dont_inject(struct kvm_vcpu *vcpu)
+{
+	return vcpu->arch.sw_ctxt.dont_inject;
+}
+
+static inline bool kvm_vcpu_test_and_clear_dont_inject(struct kvm_vcpu *vcpu)
+{
+	if (likely(!kvm_vcpu_test_dont_inject(vcpu)))
+		return false;
+
+	kvm_vcpu_reset_dont_inject(vcpu);
+	return true;
+}
+
+static inline bool host_test_dont_inject(pt_regs_t *regs)
+{
+	return host_test_intc_emul_mode(regs) && regs->dont_inject;
+}
+
 static inline void pv_vcpu_clear_gti(struct kvm_vcpu *vcpu)
 {
 	if (likely(!vcpu->arch.is_hv && vcpu->arch.is_pv)) {
@@ -310,6 +339,11 @@ static inline void insert_pv_vcpu_traps(thread_info_t *ti, pt_regs_t *regs)
 }
 
 static inline bool kvm_vcpu_in_hypercall(struct kvm_vcpu *vcpu)
+{
+	return false;
+}
+
+static inline bool host_test_dont_inject(pt_regs_t *regs)
 {
 	return false;
 }

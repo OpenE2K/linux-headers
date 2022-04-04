@@ -93,11 +93,6 @@ static inline void native_set_kernel_CUTD(void)
 	NATIVE_NV_NOIRQ_WRITE_CUTD_REG(k_cutd);
 }
 
-#define NATIVE_CLEAR_DAM	\
-({ \
-	NATIVE_SET_MMUREG(dam_inv, 0); \
-})
-
 /*
  * Macros to save and restore registers.
  */
@@ -538,6 +533,8 @@ do {									\
 		E2K_SET_GREGS_TO_THREAD(gbase, g_u, gt_u);		\
 })
 
+#define NATIVE_CLEAR_DAM	NATIVE_SET_MMUREG(dam_inv, 0)
+
 #if defined(CONFIG_PARAVIRT_GUEST)
 #include <asm/paravirt/regs_state.h>
 #elif defined(CONFIG_KVM_GUEST_KERNEL)
@@ -549,6 +546,8 @@ do {									\
 
 #define SET_GREGS_TO_THREAD(gbase, g_user, gtag_user)           \
 	NATIVE_SET_GREGS_TO_THREAD(gbase, g_user, gtag_user)
+
+#define CLEAR_DAM	NATIVE_CLEAR_DAM
 
 #endif /* !CONFIG_PARAVIRT_GUEST && !CONFIG_KVM_GUEST_KERNEL */
 

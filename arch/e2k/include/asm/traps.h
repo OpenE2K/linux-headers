@@ -55,6 +55,7 @@ extern void do_trap_cellar(struct pt_regs *regs, int only_system_tc);
 
 extern irqreturn_t native_do_interrupt(struct pt_regs *regs);
 extern void do_nm_interrupt(struct pt_regs *regs);
+extern void do_mem_error(struct pt_regs *regs);
 extern void native_instr_page_fault(struct pt_regs *regs, tc_fault_type_t ftype,
 					const int async_instr);
 
@@ -224,8 +225,8 @@ extern int apply_psp_delta_to_signal_stack(unsigned long base,
 extern int apply_pcsp_delta_to_signal_stack(unsigned long base,
 		unsigned long size, unsigned long start, unsigned long end,
 		unsigned long delta);
-extern int apply_usd_delta_to_signal_stack(unsigned long top,
-					unsigned long delta, bool incr);
+extern int apply_usd_delta_to_signal_stack(unsigned long top, unsigned long delta,
+		bool incr, unsigned long *chain_stack_border);
 
 static inline int host_apply_psp_delta_to_signal_stack(unsigned long base,
 			unsigned long size, unsigned long start,

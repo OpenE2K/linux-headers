@@ -43,6 +43,7 @@ is_gdb_breakpoint_trap(struct pt_regs *regs)
 }
 
 extern void kernel_stack_overflow(unsigned int overflows);
+extern void kernel_data_stack_overflow(void);
 
 static inline void native_clear_fork_child_pt_regs(struct pt_regs *childregs)
 {

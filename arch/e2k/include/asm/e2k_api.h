@@ -924,7 +924,6 @@ _Pragma("no_asm_inline")						\
 		NATIVE_SET_DSREG_CLOSED_NOEXC(reg, (val), 7)
 #endif
 
-
 /*
  * bug #97048
  * Closed GNU asm is used for rarely read registers.
@@ -1005,6 +1004,24 @@ _Pragma("no_asm_inline")						\
 		      "{nop} {nop} {nop} {nop}" \
 		      : \
 		      : "ri" ((__e2k_u64_t) (val))); \
+})
+
+/* Add ctpr3 clobber to avoid writing CRs between return and ct */
+#define NATIVE_SET_CR_CLOSED_NOEXC(reg_mnemonic, val) \
+({ \
+	asm volatile ( \
+		ALTERNATIVE_1_ALTINSTR \
+		/* CPU_HWBUG_INTC_CR_WRITE version */ \
+		      "{wait ma_c=1\n" \
+		      "rwd %0, %%" #reg_mnemonic "}" \
+		ALTERNATIVE_2_OLDINSTR \
+		/* Default version */ \
+		      "{rwd %0, %%" #reg_mnemonic "}" \
+		ALTERNATIVE_3_FEATURE(%[facility]) \
+		      : \
+		      : "ri" ((__e2k_u64_t) (val)), \
+			[facility] "i" (CPU_HWBUG_INTC_CR_WRITE) \
+		      : "ctpr3"); \
 })
 
 #define NATIVE_SET_DSREGS_CLOSED_NOEXC(reg_mnemonic_lo, reg_mnemonic_hi, \
@@ -6689,16 +6706,38 @@ do { \
 /* Clobbers "ctpr" are here to tell lcc that there is a return inside */
 #define E2K_HRET_CLOBBERS  "ctpr1", "ctpr2", "ctpr3"
 
+#define E2K_HRET_READ_INTC_PTR_CU \
+	".word 0x04100011\n" /* rrd,0 %intc_ptr_cu, %dr0 */ \
+	".word 0x3f65c080\n" \
+	".word 0x01c00000\n" \
+	".word 0x00000000\n"
+
+#define E2K_HRET_CLEAR_INTC_INFO_CU \
+	".word 0x04100291\n" /* nop 5 */ \
+	".word 0x3dc0c064\n" /* rwd,0 0x0, %intc_info_cu */ \
+	".word 0x01c00000\n" \
+	".word 0x00000000\n"
+
 #define E2K_HRET(_ret) \
 do { \
 	asm volatile ( \
+		ALTERNATIVE_1_ALTINSTR \
+		/* CPU_HWBUG_HRET_INTC_CU version */ \
+			E2K_HRET_READ_INTC_PTR_CU \
+			E2K_HRET_CLEAR_INTC_INFO_CU \
+			E2K_HRET_CLEAR_INTC_INFO_CU \
+			E2K_HRET_READ_INTC_PTR_CU \
+		ALTERNATIVE_2_OLDINSTR \
+		/* Default version */ \
+		ALTERNATIVE_3_FEATURE(%[facility]) \
 		"addd 0x0, %[ret], %%r0\n" \
 		"{.word 0x00005012\n" /* HRET */ \
 		" .word 0xc0000020\n" \
 		" .word 0x30000003\n" \
 		" .word 0x00000000}\n" \
 		: \
-		: [ret] "ir" (_ret) \
+		: [facility] "i" (CPU_HWBUG_HRET_INTC_CU), \
+		  [ret] "ir" (_ret) \
 		: E2K_HRET_CLOBBERS); \
 	unreachable(); \
 } while (0)

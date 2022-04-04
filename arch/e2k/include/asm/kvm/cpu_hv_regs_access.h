@@ -201,14 +201,23 @@ static inline void write_SH_CORE_MODE_reg(e2k_core_mode_t core_mode)
 #endif /* CONFIG_VIRTUALIZATION */
 
 #define	READ_G_PREEMPT_TMR_REG() \
-		((e2k_g_preempt_tmr_t) NATIVE_GET_SREG_CLOSED(g_preempt_tmr))
+		((g_preempt_tmr_t) NATIVE_GET_DSREG_CLOSED(g_preempt_tmr))
 #define	WRITE_G_PREEMPT_TMR_REG(x) \
-		NATIVE_SET_SREG_CLOSED_NOEXC(g_preempt_tmr, AW(x), 5)
+		NATIVE_SET_DSREG_CLOSED_NOEXC(g_preempt_tmr, AW(x), 5)
 
 #define READ_INTC_PTR_CU() NATIVE_GET_DSREG_CLOSED(intc_ptr_cu)
 #define READ_INTC_INFO_CU() NATIVE_GET_DSREG_CLOSED(intc_info_cu)
 #define WRITE_INTC_INFO_CU(x) \
 		NATIVE_SET_DSREG_CLOSED_NOEXC(intc_info_cu, x, 5)
+
+/* Clear INTC_INFO_CU header and INTC_PTR_CU */
+static inline void clear_intc_info_cu(void)
+{
+	READ_INTC_PTR_CU();
+	WRITE_INTC_INFO_CU(0ULL);
+	WRITE_INTC_INFO_CU(0ULL);
+	READ_INTC_PTR_CU();
+}
 
 static inline void save_intc_info_cu(intc_info_cu_t *info, int *num)
 {
@@ -227,14 +236,8 @@ static inline void save_intc_info_cu(intc_info_cu_t *info, int *num)
 		return;
 	}
 
-	/*
-	 * CU header should be cleared --- fg@mcst.ru
-	 */
 	AW(info->header.lo) = READ_INTC_INFO_CU();
 	AW(info->header.hi) = READ_INTC_INFO_CU();
-	READ_INTC_PTR_CU();
-	WRITE_INTC_INFO_CU(0ULL);
-	WRITE_INTC_INFO_CU(0ULL);
 	info_ptr -= 2;
 
 	/*
@@ -254,17 +257,16 @@ static inline void restore_intc_info_cu(const intc_info_cu_t *info, int num)
 {
 	int i;
 
-	/*
-	 * 1) Clear the hardware pointer
-	 */
+	/* Clear the pointer, in case we just migrated to new cpu */
 	READ_INTC_PTR_CU();
-	if (num == -1)
+
+	/* Header will be cleared by hardware during GLAUNCH */
+	if (num == -1 || num == 0)
 		return;
 
 	/*
-	 * 2) Write the registers
-	 *
-	 * CU header should be cleared --- fg@mcst.ru
+	 * Restore intercepted events. Header flags aren't used for reexecution,
+	 * so restore 0 in header.
 	 */
 	WRITE_INTC_INFO_CU(0ULL);
 	WRITE_INTC_INFO_CU(0ULL);

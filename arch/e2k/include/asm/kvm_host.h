@@ -414,6 +414,9 @@ typedef enum pf_res {
 	PFRES_RETRY,		/* page fault is not handled and can */
 				/* be retried on guest or should be handled */
 				/* from begining by hypervisor */
+	PFRES_RETRY_MEM,	/* not enough memory to handle */
+	PFRES_DONT_INJECT,	/* page ault should be injected to the guest */
+				/* but injection is prohibited */
 } pf_res_t;
 
 struct kvm_arch_exception;
@@ -561,7 +564,7 @@ typedef struct kvm_mmu {
 			    gw_attr_t *gw_res);
 	void (*update_spte)(struct kvm_vcpu *vcpu, struct kvm_mmu_page *sp,
 			   pgprot_t *spte, const void *pte);
-	void (*sync_gva)(struct kvm_vcpu *vcpu, gmm_struct_t *gmm, gva_t gva);
+	int (*sync_gva)(struct kvm_vcpu *vcpu, gmm_struct_t *gmm, gva_t gva);
 	long (*sync_gva_range)(struct kvm_vcpu *vcpu, gmm_struct_t *gmm,
 				gva_t gva_start, gva_t gva_end);
 	int (*sync_page)(struct kvm_vcpu *vcpu, kvm_mmu_page_t *sp);
@@ -782,6 +785,7 @@ typedef struct kvm_sw_cpu_context {
 	int osem;
 	bool in_hypercall;
 	bool in_fast_syscall;
+	bool dont_inject;
 
 	e2k_usd_lo_t usd_lo;
 	e2k_usd_hi_t usd_hi;
@@ -1224,6 +1228,8 @@ struct kvm_vcpu_arch {
 
 	int node_id;
 	int hard_cpu_id;
+
+	u64 gst_mkctxt_trampoline;
 };
 
 typedef struct kvm_lpage_info {
@@ -1257,6 +1263,7 @@ typedef struct kvm_arch_memory_slot {
 #define KVM_REQ_VIRQS_INJECTED		22	/* pending VIRQs injected */
 #define KVM_REQ_SCAN_IOAPIC		23	/* scan IO-APIC */
 #define KVM_REQ_SCAN_IOEPIC		24	/* scan IO-EPIC */
+#define	KVM_REQ_TO_COREDUMP		25	/* pending coredump request */
 
 #define kvm_set_pending_virqs(vcpu)	\
 		set_bit(KVM_REQ_PENDING_VIRQS, (void *)&vcpu->requests)
@@ -1283,6 +1290,14 @@ do { \
 	if (test_and_clear_bit(KVM_REG_SHOW_STATE, (void *)&vcpu->requests)) \
 		wake_up_bit((void *)&vcpu->requests, KVM_REG_SHOW_STATE); \
 } while (false)
+#define kvm_set_request_to_coredump(vcpu)	\
+		kvm_make_request(KVM_REQ_TO_COREDUMP, vcpu)
+#define	kvm_clear_request_to_coredump(vcpu)	\
+		kvm_clear_request(KVM_REQ_TO_COREDUMP, vcpu)
+#define	kvm_test_request_to_coredump(vcpu)	\
+		kvm_test_request(KVM_REQ_TO_COREDUMP, vcpu)
+#define	kvm_test_and_clear_request_to_coredump(vcpu)	\
+		kvm_check_request(KVM_REQ_TO_COREDUMP, vcpu)
 
 struct kvm_irq_mask_notifier {
 	void (*func)(struct kvm_irq_mask_notifier *kimn, bool masked);
@@ -1320,7 +1335,6 @@ struct kvm_arch {
 	bool tdp_enable;	/* two dimensional paging is supported */
 				/* by hardware MMU and hypervisor */
 	bool shadow_pt_set_up;	/* shadow PT was set up, skip setup on other VCPUs */
-	struct mutex spt_sync_lock;
 	atomic_t vcpus_to_reset;	/* atomic counter of VCPUs ready to reset */
 	kvm_mem_alias_t aliases[KVM_ALIAS_SLOTS];
 	kvm_kernel_shadow_t shadows[KVM_SHADOW_SLOTS];
@@ -1627,5 +1641,14 @@ static inline void kvm_epic_stop_idle_timer(struct kvm_vcpu *vcpu) { }
 
 extern struct work_struct kvm_dump_stacks;
 extern void wait_for_print_all_guest_stacks(struct work_struct *work);
+
+typedef enum kvm_e2k_from {
+	FROM_GENERIC_HYPERCALL,
+	FROM_LIGHT_HYPERCALL,
+	FROM_PV_INTERCEPT,
+	FROM_HV_INTERCEPT,
+	FROM_VCPU_LOAD,
+	FROM_VCPU_PUT
+} kvm_e2k_from_t;
 
 #endif /* _ASM_E2K_KVM_HOST_H */

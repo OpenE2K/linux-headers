@@ -75,21 +75,6 @@ kvm_find_nid(struct kvm_nid_table *nid_table, int nid_nr, int hash_index)
 	return nid;
 }
 
-static inline kvm_nid_t *
-kvm_try_find_nid(struct kvm_nid_table *nid_table, int nid_nr, int hash_index)
-{
-	kvm_nid_t *nid;
-	unsigned long flags;
-	bool locked;
-
-	locked = raw_spin_trylock_irqsave(&nid_table->nidmap_lock, flags);
-	nid = kvm_do_find_nid(nid_table, nid_nr, hash_index);
-	if (likely(locked)) {
-		raw_spin_unlock_irqrestore(&nid_table->nidmap_lock, flags);
-	}
-	return nid;
-}
-
 #define	for_each_guest_nid_node(node, entry, next, nid_table,	\
 						nid_hlist_member)	\
 	for ((entry) = 0; (entry) < (nid_table)->nid_hash_size; (entry)++) \

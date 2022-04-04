@@ -213,26 +213,6 @@ TRACE_EVENT(
 );
 
 TRACE_EVENT(
-	intc_exit,
-
-	TP_PROTO(int ret),
-
-	TP_ARGS(ret),
-
-	TP_STRUCT__entry(
-		__field(	int,	ret	)
-	),
-
-	TP_fast_assign(
-		__entry->ret = ret;
-	),
-
-	TP_printk("Intercept exit %s(%d)",
-		(__entry->ret) ? "to QEMU " : "",
-		__entry->ret)
-);
-
-TRACE_EVENT(
 	intc_stacks,
 
 	TP_PROTO(const kvm_sw_cpu_context_t *sw_ctxt, const kvm_hw_cpu_context_t *hw_ctxt,

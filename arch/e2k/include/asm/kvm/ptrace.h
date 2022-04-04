@@ -30,7 +30,7 @@
 typedef enum inject_caller {
 	FROM_HOST_INJECT = 1 << 0,
 	FROM_PV_VCPU_TRAP_INJECT = 1 << 1,
-	FROM_PV_VCPU_SYSCALL_INJECT = 1 << 2,
+	FROM_PV_VCPU_SYSCALL_INJECT = 1 << 2
 } inject_caller_t;
 
 #ifdef	CONFIG_VIRTUALIZATION
@@ -588,6 +588,9 @@ check_is_user_address(struct task_struct *task, e2k_addr_t address)
 typedef struct pv_vcpu_ctxt {
 	inject_caller_t inject_from;	/* reason of injection */
 	int trap_no;			/* number of recursive trap */
+	int skip_frames;		/* number signal stack frame to remove */
+	int skip_traps;			/* number of traps frames to remove */
+	int skip_syscalls;		/* number of syscall frames to remove */
 	u64 sys_rval;			/* return value of guest system call */
 	e2k_psr_t guest_psr;		/* guest PSR state before trap */
 	bool irq_under_upsr;		/* is IRQ control under UOSR? */

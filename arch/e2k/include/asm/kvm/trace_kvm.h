@@ -963,16 +963,44 @@ TRACE_EVENT(
 		__entry->aaldi[30], __entry->aaldi[31])
 );
 
+TRACE_EVENT(kvm_pid,
+	TP_PROTO(kvm_e2k_from_t from, unsigned long vmid, unsigned long vcpu_id, unsigned long pid),
+	TP_ARGS(from, vmid, vcpu_id, pid),
+
+	TP_STRUCT__entry(
+		__field(	kvm_e2k_from_t,	from		)
+		__field(	u64,		vmid		)
+		__field(	u64,		vcpu_id		)
+		__field(	u64,		pid		)
+	),
+
+	TP_fast_assign(
+		__entry->from		= from;
+		__entry->vmid		= vmid;
+		__entry->vcpu_id	= vcpu_id;
+		__entry->pid		= pid;
+	),
+
+	TP_printk("%s: vmid %llu vcpu %llu mmu pid 0x%llx",
+		__print_symbolic(__entry->from,
+			{ FROM_GENERIC_HYPERCALL,	"generic hcall" },
+			{ FROM_LIGHT_HYPERCALL,		"light hcall" },
+			{ FROM_PV_INTERCEPT,		"pv intc" },
+			{ FROM_HV_INTERCEPT,		"hv intc" },
+			{ FROM_VCPU_LOAD,		"vcpu load" },
+			{ FROM_VCPU_PUT,		"vcpu put" }),
+		__entry->vmid, __entry->vcpu_id, __entry->pid)
+);
+
 TRACE_EVENT(
 	generic_hcall,
 
 	TP_PROTO(unsigned long hcall_num, unsigned long arg1,
 		unsigned long arg2, unsigned long arg3,
 		unsigned long arg4, unsigned long arg5,
-		unsigned long arg6, unsigned long gsbr,
-		unsigned long cpu),
+		unsigned long arg6, unsigned long gsbr),
 
-	TP_ARGS(hcall_num, arg1, arg2, arg3, arg4, arg5, arg6, gsbr, cpu),
+	TP_ARGS(hcall_num, arg1, arg2, arg3, arg4, arg5, arg6, gsbr),
 
 	TP_STRUCT__entry(
 		__field(	u64,	hcall_num	)
@@ -983,7 +1011,6 @@ TRACE_EVENT(
 		__field(	u64,	arg5	)
 		__field(	u64,	arg6	)
 		__field(	u64,	gsbr	)
-		__field(	u64,	cpu	)
 	),
 
 	TP_fast_assign(
@@ -995,13 +1022,11 @@ TRACE_EVENT(
 		__entry->arg5	= arg5;
 		__entry->arg6	= arg6;
 		__entry->gsbr	= gsbr;
-		__entry->cpu	= cpu;
 	),
 
-	TP_printk("CPU#%llu, generic hypercall %llu\n"
+	TP_printk("nr %llu\n"
 		"Args: 0x%llx, 0x%llx, 0x%llx, 0x%llx, 0x%llx, 0x%llx; gsbr: 0x%llx"
 		,
-		__entry->cpu,
 		__entry->hcall_num,
 		__entry->arg1,
 		__entry->arg2,
@@ -1018,9 +1043,9 @@ TRACE_EVENT(
 	TP_PROTO(unsigned long hcall_num, unsigned long arg1,
 		unsigned long arg2, unsigned long arg3,
 		unsigned long arg4, unsigned long arg5,
-		unsigned long arg6, unsigned long cpu),
+		unsigned long arg6),
 
-	TP_ARGS(hcall_num, arg1, arg2, arg3, arg4, arg5, arg6, cpu),
+	TP_ARGS(hcall_num, arg1, arg2, arg3, arg4, arg5, arg6),
 
 	TP_STRUCT__entry(
 		__field(	u64,	hcall_num	)
@@ -1030,7 +1055,6 @@ TRACE_EVENT(
 		__field(	u64,	arg4	)
 		__field(	u64,	arg5	)
 		__field(	u64,	arg6	)
-		__field(	u64,	cpu	)
 	),
 
 	TP_fast_assign(
@@ -1041,13 +1065,11 @@ TRACE_EVENT(
 		__entry->arg4	= arg4;
 		__entry->arg5	= arg5;
 		__entry->arg6	= arg6;
-		__entry->cpu	= cpu;
 	),
 
-	TP_printk("CPU#%llu, light hypercall %llu\n"
+	TP_printk("nr %llu\n"
 		"Args: 0x%llx, 0x%llx, 0x%llx, 0x%llx, 0x%llx, 0x%llx"
 		,
-		__entry->cpu,
 		__entry->hcall_num,
 		__entry->arg1,
 		__entry->arg2,

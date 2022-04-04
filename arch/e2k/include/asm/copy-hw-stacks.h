@@ -244,12 +244,12 @@ kernel_hw_stack_frames_copy(u64 *dst, const u64 *src, unsigned long size)
 	native_kernel_hw_stack_frames_copy(dst, src, size);
 }
 static __always_inline void
-collapse_kernel_pcs(u64 *dst, const u64 *src, u64 spilled_size)
+collapse_kernel_pcs(pt_regs_t *regs, u64 *dst, const u64 *src, u64 spilled_size)
 {
 	native_collapse_kernel_pcs(dst, src, spilled_size);
 }
 static __always_inline void
-collapse_kernel_ps(u64 *dst, const u64 *src, u64 spilled_size)
+collapse_kernel_ps(pt_regs_t *regs, u64 *dst, const u64 *src, u64 spilled_size)
 {
 	native_collapse_kernel_ps(dst, src, spilled_size);
 }
@@ -601,7 +601,8 @@ native_user_hw_stacks_copy(struct e2k_stacks *stacks,
 	return 0;
 }
 
-static inline void collapse_kernel_hw_stacks(struct e2k_stacks *stacks)
+static inline void collapse_kernel_hw_stacks(pt_regs_t *regs,
+					     struct e2k_stacks *stacks)
 {
 	e2k_pcsp_lo_t k_pcsp_lo = current_thread_info()->k_pcsp_lo;
 	e2k_psp_lo_t k_psp_lo = current_thread_info()->k_psp_lo;
@@ -635,7 +636,7 @@ static inline void collapse_kernel_hw_stacks(struct e2k_stacks *stacks)
 	if (spilled_pc_size) {
 		dst = (u64 *) AS(k_pcsp_lo).base;
 		src = (u64 *) (AS(k_pcsp_lo).base + spilled_pc_size);
-		collapse_kernel_pcs(dst, src, spilled_pc_size);
+		collapse_kernel_pcs(regs, dst, src, spilled_pc_size);
 
 		stacks->pcshtp = SZ_OF_CR;
 
@@ -645,7 +646,7 @@ static inline void collapse_kernel_hw_stacks(struct e2k_stacks *stacks)
 	if (spilled_p_size) {
 		dst = (u64 *) AS(k_psp_lo).base;
 		src = (u64 *) (AS(k_psp_lo).base + spilled_p_size);
-		collapse_kernel_ps(dst, src, spilled_p_size);
+		collapse_kernel_ps(regs, dst, src, spilled_p_size);
 
 		AS(pshtp).ind = 0;
 		stacks->pshtp = pshtp;
@@ -823,7 +824,7 @@ static inline int do_user_hw_stacks_copy_full(struct e2k_stacks *stacks,
 	 * this way we can later FILL using return trick (otherwise there
 	 * would be no space in chain stack for the trick).
 	 */
-	collapse_kernel_hw_stacks(stacks);
+	collapse_kernel_hw_stacks(regs, stacks);
 
 	/*
 	 * Copy saved %cr registers

@@ -40,6 +40,7 @@
 #include <asm/cpu_regs_types.h>
 #include <asm/trap_def.h>
 #include <asm/kvm/guest/cpu.h>
+#include <asm/kvm/proc_context_types.h>
 
 #ifdef	CONFIG_KVM_GUEST_HW_HCALL
 extern unsigned long light_hw_hypercall(unsigned long nr,
@@ -254,6 +255,8 @@ static inline unsigned long generic_hypercall6(unsigned long nr,
 #define	KVM_HCALL_FAST_KERNEL_TAGGED_MEMORY_COPY 40
 /* fast guest kernel tagged memory set */
 #define	KVM_HCALL_FAST_KERNEL_TAGGED_MEMORY_SET  41
+/* update last 2 frmaes on guest kernel stack */
+#define KVM_HCALL_UPDATE_GUEST_KERNEL_CRS	42
 
 
 typedef struct kvm_hw_stacks_flush {
@@ -404,7 +407,6 @@ HYPERVISOR_inject_interrupt(void)
 {
 	return light_hypercall0(KVM_HCALL_INJECT_INTERRUPT);
 }
-extern unsigned long kvm_hypervisor_inject_interrupt(void);
 static inline unsigned long
 HYPERVISOR_virqs_handled(void)
 {
@@ -508,6 +510,14 @@ HYPERVISOR_fast_kernel_tagged_memory_set(void *addr, u64 val, u64 tag, size_t le
 {
 	return light_hypercall5(KVM_HCALL_FAST_KERNEL_TAGGED_MEMORY_SET,
 			(unsigned long)addr, val, tag, len, strd_opcode);
+}
+static inline unsigned long
+HYPERVISOR_update_guest_kernel_crs(e2k_mem_crs_t *crs, e2k_mem_crs_t *prev_crs,
+				e2k_mem_crs_t *p_prev_crs)
+{
+	return light_hypercall3(KVM_HCALL_UPDATE_GUEST_KERNEL_CRS,
+			(unsigned long)crs, (unsigned long)prev_crs,
+			(unsigned long)p_prev_crs);
 }
 
 /*
@@ -689,6 +699,15 @@ HYPERVISOR_fast_kernel_tagged_memory_set(void *addr, u64 val, u64 tag, size_t le
 						/* recovery faulted load */
 						/* value and tag to global */
 						/* register */
+#define KVM_HCALL_PREPARE_MKCTXT_HW_USER_STACKS	145
+
+#define KVM_HCALL_ADD_CTX_SIGNAL_STACK		146
+						/* create separate */
+						/* signal stack for context */
+						/* on host side */
+#define KVM_HCALL_REMOVE_CTX_SIGNAL_STACK	147
+						/* remove signal stack for */
+						/* context on host side */
 
 
 /*
@@ -904,10 +923,13 @@ HYPERVISOR_set_clockevent(unsigned long delta)
 }
 
 static inline unsigned long
-HYPERVISOR_complete_long_jump(kvm_long_jump_info_t *regs_state)
+HYPERVISOR_complete_long_jump(kvm_long_jump_info_t *regs_state,
+				bool switch_stack, u64 to_key)
 {
-	return generic_hypercall1(KVM_HCALL_COMPLETE_LONG_JUMP,
-				  (unsigned long)regs_state);
+	return generic_hypercall3(KVM_HCALL_COMPLETE_LONG_JUMP,
+				(unsigned long)regs_state,
+				(unsigned long)switch_stack,
+				(unsigned long)to_key);
 }
 
 static inline unsigned long
@@ -1566,6 +1588,13 @@ static inline int HYPERVISOR_pv_enable_async_pf(u64 apf_reason_gpa,
 					apf_ready_vector, irq_controller);
 }
 #endif /* CONFIG_KVM_ASYNC_PF */
+static inline int
+HYPERVISOR_prepare_mkctxt_hw_user_stacks(kvm_proc_ctxt_hw_stacks_t *hw_stacks)
+{
+	return generic_hypercall1(KVM_HCALL_PREPARE_MKCTXT_HW_USER_STACKS,
+				(unsigned long)hw_stacks);
+}
+
 
 /*
  * The structure to flush guest virtual space at the host shadow PTs
@@ -1620,6 +1649,19 @@ static inline unsigned long
 HYPERVISOR_wait_for_virq(int virq, bool in_progress)
 {
 	return generic_hypercall2(KVM_HCALL_WAIT_FOR_VIRQ, virq, in_progress);
+}
+
+static inline unsigned long
+HYPERVISOR_add_ctx_signal_stack(u64 key, bool is_main)
+{
+	return generic_hypercall2(KVM_HCALL_ADD_CTX_SIGNAL_STACK,
+				key, is_main);
+}
+
+static inline void
+HYPERVISOR_remove_ctx_signal_stack(u64 key)
+{
+	generic_hypercall1(KVM_HCALL_REMOVE_CTX_SIGNAL_STACK, key);
 }
 
 #endif /* _ASM_E2K_HYPERCALL_H */
